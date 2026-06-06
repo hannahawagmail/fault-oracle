@@ -1,0 +1,38 @@
+# Kernel module build artifacts
+*.ko
+*.o
+*.mod
+*.mod.c
+*.mod.o
+.tmp_versions/
+Module.symvers
+modules.order
+*.symvers
+*.order
+
+# Go build output
+exporter/hw-fault-exporter
+exporter/hw-fault-exporter-*
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Test output
+/tmp/qemu-test-results/
+qemu-test.log
+tests/pytest-output.log
+tests/htmlcov/
+
+# Editor / OS
+.DS_Store
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
