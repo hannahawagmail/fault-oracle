@@ -1,0 +1,10 @@
+[Unit]
+Description=DIMM CE rate Prophet model retraining
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/lib/hw-fault-resilience/ml/ce-forecaster.py
+User=hw-fault-ml
+StandardOutput=journal
+StandardError=journal
