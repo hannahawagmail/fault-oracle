@@ -1,38 +1,58 @@
-# Kernel module build artifacts
-*.ko
-*.o
-*.mod
-*.mod.c
-*.mod.o
-.tmp_versions/
-Module.symvers
-modules.order
-*.symvers
-*.order
+# SPDX-License-Identifier: Apache-2.0
 
-# Go build output
-exporter/hw-fault-exporter
-exporter/hw-fault-exporter-*
-
-# Python cache
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
 .pytest_cache/
 .coverage
-coverage.xml
+.coverage.*
 htmlcov/
+coverage*.out
+.coverage.json
+*.egg-info/
+dist/
+build/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
 
-# Test output
-/tmp/qemu-test-results/
-qemu-test.log
-tests/pytest-output.log
-tests/htmlcov/
+# Go
+exporter/hw-fault-exporter
+exporter/coverage.out
+exporter/*.test
 
-# Editor / OS
+# Secrets and credentials
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+.env
+.env.*
+
+# Editor artifacts
 .DS_Store
 *.swp
 *.swo
-*~
 .idea/
 .vscode/
+*.sublime-*
+
+# Build artifacts
+*.tar.gz
+*.bundle
+dist/
+release/
+
+# Temporary files
+*.tmp
+*.bak
+*.orig
+tmp/
+/pytest-cache-files-*/
+
+# CI runtime artifacts
+/arm-linux-fault-resilience-source.tar.gz
+/arm-linux-fault-resilience.bundle
+/arm-linux-fault-resilience.tar.gz
