@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: Apache-2.0
+[Unit]
+Description=HW Fault Remediation Webhook Server
+Documentation=https://github.com/arm-linux-fault-resilience
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/lib/hw-fault-resilience/remediation/webhook-server.py
+Restart=on-failure
+RestartSec=10
+User=root
+Environment=WEBHOOK_PORT=8081
+Environment=STATE_FILE=/var/lib/hw-fault-remediation/state.json
+Environment=FALSE_POSITIVES_FILE=/var/lib/hw-fault-remediation/false-positives.jsonl
+Environment=RETRAIN_FILE=/var/lib/hw-fault-ml/retrain-needed
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=webhook-server
+
+[Install]
+WantedBy=multi-user.target

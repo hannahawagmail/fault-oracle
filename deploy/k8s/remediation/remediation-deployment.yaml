@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fault-resilience-remediation
+  namespace: fault-resilience
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fault-resilience-remediation
+  template:
+    metadata:
+      labels:
+        app: fault-resilience-remediation
+    spec:
+      serviceAccountName: fault-resilience-remediation
+      containers:
+      - name: remediation-controller
+        image: fault-resilience/remediation:latest  # pin to SHA in production
+        env:
+        - name: PROMETHEUS_URL
+          value: "http://prometheus:9090"
+        - name: CORDON_THRESHOLD
+          value: "0.8"
+        - name: COOLDOWN_HOURS
+          value: "4"
+        - name: DRY_RUN
+          value: "true"  # safe default — operators opt in to real cordons
+        - name: LOKI_URL
+          value: ""
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+        volumeMounts:
+        - name: state
+          mountPath: /var/lib/hw-fault-remediation
+        ports:
+        - containerPort: 8080
+          name: metrics
+        - containerPort: 8081
+          name: webhook
+      volumes:
+      - name: state
+        emptyDir: {}
