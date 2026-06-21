@@ -1,0 +1,31 @@
+{{/* Hardware fault alert templates for Slack + PagerDuty */}}
+
+{{ define "alert.summary" }}
+{{ range .Alerts }}
+  [{{ .Status | toUpper }}] {{ .Labels.alertname }} — {{ .Labels.instance }}
+  {{ if .Annotations.summary }}  Summary: {{ .Annotations.summary }}{{ end }}
+{{ end }}
+{{ end }}
+
+{{ define "slack.title" }}
+[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }} ({{ .CommonLabels.severity }})
+{{ end }}
+
+{{ define "slack.text" }}
+*Alerts firing:* {{ len .Alerts.Firing }}  |  *Resolved:* {{ len .Alerts.Resolved }}
+{{ range .Alerts.Firing }}
+• *{{ .Labels.alertname }}* on `{{ .Labels.instance }}`
+  {{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
+  <{{ .GeneratorURL }}|View in Prometheus>
+{{ end }}
+{{ end }}
+
+{{ define "slack.color" }}
+{{ if eq .Status "resolved" }}good{{ else if eq .CommonLabels.severity "critical" }}danger{{ else if eq .CommonLabels.severity "warning" }}warning{{ else }}#439FE0{{ end }}
+{{ end }}
+
+{{ define "pagerduty.description" }}
+{{ .CommonLabels.alertname }} — {{ .CommonLabels.instance }}
+Severity: {{ .CommonLabels.severity }}
+{{ range .Alerts.Firing }}{{ if .Annotations.summary }}{{ .Annotations.summary }}{{ end }}{{ end }}
+{{ end }}

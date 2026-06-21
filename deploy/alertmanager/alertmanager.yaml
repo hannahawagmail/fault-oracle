@@ -1,0 +1,127 @@
+# SPDX-License-Identifier: Apache-2.0
+# Full Alertmanager configuration for hw-fault-resilience.
+#
+# Routing:
+#   critical + UE → PagerDuty (page immediately)
+#   warning        → Slack #hw-fault-alerts
+#   info           → Slack #hw-fault-info (batched 15m)
+#
+# Inhibition:
+#   If node is down, suppress individual collector alerts from that node.
+#   If UE fires, suppress CE alerts from the same mc/node.
+global:
+  resolve_timeout: 5m
+  slack_api_url: "${SLACK_WEBHOOK_URL}"
+  pagerduty_url:  "https://events.pagerduty.com/v2/enqueue"
+
+templates:
+  - /etc/alertmanager/templates/*.tmpl
+
+route:
+  group_by: [alertname, instance, mc]
+  group_wait:      30s
+  group_interval:  5m
+  repeat_interval: 4h
+  receiver: slack-warning
+
+  routes:
+    # Fatal / UE / SLO fast-burn → PagerDuty, 0 wait
+    - matchers:
+        - severity =~ "critical|fatal"
+      group_wait: 0s
+      repeat_interval: 30m
+      receiver: pagerduty-critical
+      continue: false
+
+    # EDAC UE → PagerDuty immediately
+    - matchers:
+        - alertname =~ "EDACUncorrectable.*"
+      group_wait: 0s
+      receiver: pagerduty-critical
+      continue: false
+
+    # PCIe fatal → PagerDuty
+    - matchers:
+        - alertname =~ "PCIe.*Fatal.*"
+      group_wait: 0s
+      receiver: pagerduty-critical
+      continue: false
+
+    # Warning → Slack alerts channel
+    - matchers:
+        - severity = "warning"
+      receiver: slack-warning
+      continue: false
+
+    # Info / slow burn → Slack info channel, batched
+    - matchers:
+        - severity = "info"
+      group_wait:     15m
+      group_interval: 30m
+      receiver: slack-info
+
+    # Recovery webhook (all firing alerts)
+    - matchers:
+        - alertname =~ ".*"
+      receiver: recovery-webhook
+      continue: true
+
+inhibit_rules:
+  # If the node exporter is down, suppress hardware alerts from that node
+  - source_matchers:
+      - alertname = "NodeExporterDown"
+    target_matchers:
+      - alertname =~ "EDAC.*|MCE.*|PCIe.*|CXL.*|Thermal.*"
+    equal: [instance]
+
+  # If UE fires on an mc, suppress CE alerts from the same mc
+  - source_matchers:
+      - alertname = "EDACUncorrectable"
+    target_matchers:
+      - alertname = "EDACCorrectableStorm"
+    equal: [instance, mc]
+
+  # If SLO fast-burn is firing, suppress the moderate burn alert (redundant)
+  - source_matchers:
+      - alertname = "CollectorSLOFastBurn"
+    target_matchers:
+      - alertname = "CollectorSLOModerateBurn"
+    equal: [instance]
+
+receivers:
+  - name: pagerduty-critical
+    pagerduty_configs:
+      - routing_key: "${PAGERDUTY_INTEGRATION_KEY}"
+        severity: critical
+        description: '{{ template "pagerduty.description" . }}'
+        details:
+          firing:    '{{ template "alert.summary" . }}'
+          runbook:   'https://wiki.internal/runbooks/hw-fault-resilience'
+          dashboard: 'https://grafana.internal/d/hw-fleet'
+
+  - name: slack-warning
+    slack_configs:
+      - channel:  '#hw-fault-alerts'
+        username: 'HW Fault Exporter'
+        icon_emoji: ':warning:'
+        title:   '{{ template "slack.title" . }}'
+        text:    '{{ template "slack.text" . }}'
+        color:   '{{ template "slack.color" . }}'
+        send_resolved: true
+
+  - name: slack-info
+    slack_configs:
+      - channel:  '#hw-fault-info'
+        username: 'HW Fault Exporter'
+        icon_emoji: ':information_source:'
+        title:   '{{ template "slack.title" . }}'
+        text:    '{{ template "slack.text" . }}'
+        send_resolved: false
+
+  - name: recovery-webhook
+    webhook_configs:
+      - url: 'http://hw-fault-recovery.monitoring.svc:9095/webhook'
+        send_resolved: false
+        max_alerts: 10
+        http_config:
+          timeout: 10s
