@@ -1,0 +1,8 @@
+[Unit]
+Description=Push Alertmanager alerts as Grafana annotations
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/lib/hw-fault-resilience/annotations/annotation-pusher.py --once
+EnvironmentFile=/etc/hw-fault-resilience/grafana.env

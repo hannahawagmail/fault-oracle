@@ -1,0 +1,9 @@
+[Unit]
+Description=Run Grafana annotation pusher every minute
+
+[Timer]
+OnCalendar=*:*:0/60
+AccuracySec=10s
+
+[Install]
+WantedBy=timers.target
