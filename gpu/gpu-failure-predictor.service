@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: Apache-2.0
+[Unit]
+Description=GPU ECC Failure Predictor (Prophet)
+Documentation=https://github.com/your-org/arm-linux-fault-resilience
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/fault-resilience/gpu/gpu-failure-predictor.py
+StandardOutput=journal
+StandardError=journal
+# Prometheus is typically reachable on the management network
+EnvironmentFile=-/etc/fault-resilience/gpu-predictor.env
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

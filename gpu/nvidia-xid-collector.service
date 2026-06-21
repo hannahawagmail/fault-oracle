@@ -1,0 +1,23 @@
+[Unit]
+Description=NVIDIA GPU XID and ECC Fault Collector
+Documentation=https://github.com/example/arm-linux-fault-resilience
+After=network.target
+ConditionPathExists=/usr/bin/nvidia-smi
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/hw-fault/gpu/nvidia-xid-collector.py \
+    --output /var/lib/node_exporter/textfile_collector/nvidia_xid.prom
+User=nobody
+Group=nogroup
+# Allow access to /proc/driver/nvidia and nvidia-smi
+CapabilityBoundingSet=
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/node_exporter/textfile_collector
+PrivateTmp=true
+# Gracefully handle absent GPU — collector exits 0 even when no GPU found
+SuccessExitStatus=0
+
+[Install]
+WantedBy=multi-user.target

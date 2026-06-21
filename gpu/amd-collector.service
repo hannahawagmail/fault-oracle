@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: Apache-2.0
+[Unit]
+Description=AMD GPU RAS / Utilisation Collector
+Documentation=https://github.com/your-org/arm-linux-fault-resilience
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/fault-resilience/gpu/amd-collector.py
+StandardOutput=journal
+StandardError=journal
+# Run as an unprivileged user — sysfs reads do not require root
+User=node-exporter
+Group=node-exporter
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: Apache-2.0
+[Unit]
+Description=Run GPU Failure Predictor hourly
+Documentation=https://github.com/your-org/arm-linux-fault-resilience
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=1h
+AccuracySec=30s
+Unit=gpu-failure-predictor.service
+
+[Install]
+WantedBy=timers.target
