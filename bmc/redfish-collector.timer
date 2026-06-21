@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: Apache-2.0
+[Unit]
+Description=Run Redfish BMC collector every 60 seconds
+Requires=redfish-collector.service
+
+[Timer]
+OnBootSec=30
+OnUnitActiveSec=60
+AccuracySec=5
+Unit=redfish-collector.service
+
+[Install]
+WantedBy=timers.target

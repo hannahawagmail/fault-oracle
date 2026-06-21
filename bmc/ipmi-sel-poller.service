@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: Apache-2.0
+[Unit]
+Description=IPMI SEL out-of-band event poller (management-plane)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/hw-fault-bmc/bmc-targets.env
+ExecStart=/usr/bin/python3 /usr/local/lib/hw-fault-resilience/bmc/ipmi-sel-poller.py \
+    --output /var/lib/node_exporter/textfile_collector/ipmi-sel.prom \
+    --state-file /var/lib/hw-fault-bmc/sel-state.json
+User=root

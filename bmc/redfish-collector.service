@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: Apache-2.0
+[Unit]
+Description=Redfish BMC API collector (management-plane)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/hw-fault-bmc/redfish.env
+ExecStart=/usr/bin/python3 /usr/local/lib/hw-fault-resilience/bmc/redfish-collector.py
+StandardOutput=append:/var/lib/node_exporter/textfile_collector/redfish.prom
+User=root
