@@ -1,0 +1,21 @@
+[Unit]
+Description=InfiniBand Port Error Counter Collector
+Documentation=https://github.com/example/arm-linux-fault-resilience
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/hw-fault/network/ib-collector.py \
+    --output /var/lib/node_exporter/textfile_collector/ib_collector.prom
+User=nobody
+Group=nogroup
+CapabilityBoundingSet=
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/node_exporter/textfile_collector
+PrivateTmp=true
+# Gracefully handle absent IB hardware — collector exits 0 even when no IB found
+SuccessExitStatus=0
+
+[Install]
+WantedBy=multi-user.target

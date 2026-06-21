@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# deploy/alerts/network-rules.yaml
+#
+# Prometheus alerting rules for network fabric monitoring.
+# Covers InfiniBand link state, symbol errors, NIC receive errors,
+# and RoCE buffer overruns.
+#
+# Load alongside other rule files:
+#   rule_files:
+#     - 'deploy/alerts/network-rules.yaml'
+
+groups:
+  - name: network-fabric
+    rules:
+      - alert: IBLinkDown
+        expr: ib_port_state == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations: {summary: "IB port {{ $labels.device }}/{{ $labels.port }} link down"}
+      - alert: IBSymbolErrors
+        expr: rate(ib_port_error_total{counter="SymbolErrorCounter"}[5m]) > 10
+        for: 2m
+        labels: {severity: warning}
+      - alert: NICRxErrors
+        expr: rate(nic_errors_total{direction="rx"}[5m]) > 50
+        for: 2m
+        labels: {severity: warning}
+      - alert: RoCEBufferOverrun
+        expr: rate(roce_errors_total{counter="out_of_buffer"}[5m]) > 0
+        for: 5m
+        labels: {severity: warning}

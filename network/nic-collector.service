@@ -1,0 +1,21 @@
+[Unit]
+Description=Ethernet/RoCE NIC sysfs Error Statistics Collector
+Documentation=https://github.com/example/arm-linux-fault-resilience
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/hw-fault/network/nic-collector.py \
+    --output /var/lib/node_exporter/textfile_collector/nic_collector.prom
+User=nobody
+Group=nogroup
+CapabilityBoundingSet=
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/node_exporter/textfile_collector
+PrivateTmp=true
+# Gracefully handle no physical interfaces — collector exits 0
+SuccessExitStatus=0
+
+[Install]
+WantedBy=multi-user.target
