@@ -1,0 +1,8 @@
+[Unit]
+Description=Miscellaneous hardware metrics collector (PCIe AER, watchdog, hwrng)
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/lib/hw-fault-resilience/power_cxl/misc-hardware-collector.py
+User=node-exporter

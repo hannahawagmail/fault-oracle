@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: Apache-2.0
+groups:
+  - name: cxl.errors
+    rules:
+      - alert: CXLUncorrectableError
+        expr: increase(cxl_uncorrectable_errors_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CXL uncorrectable error on {{ $labels.node }} device {{ $labels.device }}"
+          description: "{{ $value }} CXL uncorrectable errors (type={{ $labels.error_type }}) in the last 5 minutes."
+          runbook_url: "https://github.com/hanna-hawa/arm-linux-fault-resilience/blob/main/docs/runbook.md#CXLUncorrectableError"
+
+      - alert: CXLCorrectableStorm
+        expr: rate(cxl_correctable_errors_total[5m]) * 60 > 10
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CXL correctable error storm on {{ $labels.node }}"
+          description: "CXL correctable errors exceeding 10/min on device {{ $labels.device }}."
+          runbook_url: "https://github.com/hanna-hawa/arm-linux-fault-resilience/blob/main/docs/runbook.md#CXLCorrectableStorm"
+
+      - alert: CXLCollectorDown
+        expr: fault_resilience_collector_up{collector="cxl"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CXL collector unavailable on {{ $labels.node }}"
+          description: "The CXL sysfs hierarchy is absent (kernel < 6.2 or no CXL hardware)."

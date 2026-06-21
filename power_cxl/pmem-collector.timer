@@ -1,0 +1,10 @@
+[Unit]
+Description=Run PMEM health collector every 300 seconds
+
+[Timer]
+OnCalendar=*:*:0/300
+AccuracySec=10s
+Persistent=true
+
+[Install]
+WantedBy=timers.target
