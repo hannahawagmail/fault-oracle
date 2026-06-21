@@ -1,0 +1,8 @@
+[Unit]
+Description=RAID/HBA controller error collector
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/lib/hw-fault-resilience/storage/controller-collector.py
+User=node-exporter

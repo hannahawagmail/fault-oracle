@@ -1,0 +1,10 @@
+[Unit]
+Description=Run RAID/HBA controller collector every 300 seconds
+
+[Timer]
+OnCalendar=*:0/5
+AccuracySec=30s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

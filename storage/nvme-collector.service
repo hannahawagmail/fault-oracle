@@ -1,0 +1,8 @@
+[Unit]
+Description=NVMe SMART health collector
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/lib/hw-fault-resilience/storage/nvme-collector.py
+User=node-exporter

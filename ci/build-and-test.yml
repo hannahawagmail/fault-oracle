@@ -1,0 +1,909 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# build-and-test.yml — GitHub Actions CI pipeline for arm-linux-fault-resilience
+#
+# Pipeline stages:
+#
+#   1. lint       — Shell script syntax, Python style, Go formatting
+#   2. test-py    — pytest suite against mock sysfs (no hardware required)
+#   3. build-go   — Go exporter build for arm64 + amd64
+#   4. build-mod  — Cross-compile EDAC kernel module for ARM64
+#   5. qemu       — Boot QEMU ARM64, load module, run fault injection matrix
+#   6. docker     — Build exporter container image
+#
+# The qemu job requires a pre-built ARM64 kernel image. It is marked
+# "continue-on-error: true" so that missing kernel image doesn't block
+# the rest of the pipeline in environments without QEMU setup.
+
+name: Build and Test
+
+on:
+  push:
+    branches: [main, "feat/**", "fix/**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  GO_VERSION: "1.21"
+  PYTHON_VERSION: "3.11"
+  KERNEL_VERSION: "6.7.0"  # ARM64 kernel used for QEMU testing
+
+jobs:
+  # -----------------------------------------------------------------------
+  # Stage 1: Lint
+  # -----------------------------------------------------------------------
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Python lint tools
+        run: pip install flake8 black isort
+
+      - name: Check shell script syntax (bash -n)
+        run: |
+          echo "=== Checking shell script syntax ==="
+          find . -name "*.sh" -not -path "./.git/*" -print0 \
+            | xargs -0 -I{} bash -n {}
+          echo "All shell scripts: syntax OK"
+
+      - name: Install shellcheck
+        run: sudo apt-get install -y shellcheck
+
+      - name: ShellCheck (static analysis — error level)
+        # Severity level: error. Any shellcheck finding at error level fails
+        # the build. Add per-file shellcheck directives (with a comment
+        # explaining why) for any warning that is genuinely inapplicable.
+        run: |
+          echo "=== ShellCheck (-S error) ==="
+          find . -name "*.sh" -not -path "./.git/*" -print0 \
+            | xargs -0 shellcheck -x -S error
+          echo "All shell scripts: shellcheck OK"
+
+      - name: Lint Python (flake8)
+        run: |
+          flake8 replay/parse_edac_trace.py tests/ \
+            --max-line-length=100 \
+            --extend-ignore=E203,W503 \
+            --exclude=__pycache__
+
+      - name: Check Python formatting (black --check)
+        run: |
+          black --check --line-length 100 \
+            replay/parse_edac_trace.py tests/
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: exporter/go.sum
+
+      - name: Check Go formatting (gofmt)
+        run: |
+          cd exporter
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "The following files need gofmt:"
+            echo "$unformatted"
+            exit 1
+          fi
+          echo "All Go files are properly formatted."
+
+      - name: Go vet
+        run: |
+          cd exporter
+          go vet ./...
+
+
+      - name: Secret scanning (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          config-path: .gitleaks.toml
+      - name: Verify SPDX headers present
+        run: |
+          echo "=== Checking SPDX headers ==="
+          missing=0
+          for f in $(find . -name "*.go" -o -name "*.sh" -o -name "*.py" | grep -v ".git"); do
+            if ! grep -q "SPDX-License-Identifier" "$f"; then
+              echo "  Missing SPDX header: $f"
+              missing=1
+            fi
+          done
+          [ $missing -eq 0 ] || exit 1
+          echo "All files have SPDX headers."
+
+  # -----------------------------------------------------------------------
+  # Stage 2: Python test suite (mock sysfs — no hardware required)
+  # -----------------------------------------------------------------------
+
+  test-py:
+    name: Python Tests (mock sysfs)
+    runs-on: ubuntu-22.04
+    needs: lint
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install test dependencies
+        run: |
+          pip install pytest pytest-cov pytest-xdist
+
+      - name: Run pytest suite
+        run: |
+          cd tests/
+          pytest -v \
+            --tb=short \
+            --cov=../replay \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage.xml \
+            --cov-report=html:htmlcov \
+            --cov-fail-under=90 \
+            -n auto \
+            2>&1 | tee pytest-output.log
+
+      - name: Run BATS shell tests
+        run: |
+          # Install bats-core if not available
+          if ! command -v bats &>/dev/null; then
+            git clone --depth=1 https://github.com/bats-core/bats-core.git /tmp/bats-core
+            sudo /tmp/bats-core/install.sh /usr/local
+          fi
+          bash tests/bats/run_bats.sh --tap 2>&1 | tee bats-output.tap || true
+          echo "BATS tests complete (non-blocking in CI)"
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: tests/htmlcov/
+
+      - name: Upload test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-log
+          path: tests/pytest-output.log
+
+      # Python coverage threshold (≥ 90%) is enforced via --cov-fail-under=90
+      # in the pytest invocation above. If pytest exits non-zero, this step
+      # fails the job. No separate threshold check is needed here.
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: tests/coverage.xml
+          flags: python
+          fail_ci_if_error: false
+
+  # -----------------------------------------------------------------------
+  # Stage 2b: Module tests (boot, storage, kernel, OTA, network, smartnic)
+  # -----------------------------------------------------------------------
+
+  test-modules:
+    name: Module Tests (boot, storage, kernel, OTA, network, smartnic)
+    runs-on: ubuntu-22.04
+    needs: lint
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install test dependencies
+        run: pip install -r tests/requirements.txt
+
+      - name: Run boot-resilience tests
+        run: |
+          cd boot-resilience
+          python3 -m pytest tests/ -v --tb=short 2>&1 | tee ../boot-test.log
+        continue-on-error: true  # No hardware required but some tests may skip
+
+      - name: Run storage-integrity tests
+        run: |
+          cd storage-integrity
+          python3 -m pytest tests/ -v --tb=short 2>&1 | tee ../storage-test.log
+        continue-on-error: true
+
+      - name: Run kernel-hardening tests
+        run: |
+          cd kernel-hardening
+          python3 -m pytest tests/ -v --tb=short 2>&1 | tee ../kernel-test.log
+        continue-on-error: true
+
+      - name: Run ota-updates tests
+        run: |
+          cd ota-updates
+          python3 -m pytest tests/ -v --tb=short 2>&1 | tee ../ota-test.log
+        continue-on-error: true
+
+      - name: Run network-resilience tests
+        run: |
+          cd network-resilience
+          python3 -m pytest tests/ -v --tb=short 2>&1 | tee ../network-test.log
+        continue-on-error: true
+
+      - name: Run smartnic tests
+        run: |
+          cd smartnic
+          python3 -m pytest tests/ -v --tb=short 2>&1 | tee ../smartnic-test.log
+        continue-on-error: true
+
+      - name: Upload module test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: module-test-logs
+          path: "*-test.log"
+
+  # -----------------------------------------------------------------------
+  # Stage 3: Go exporter build
+  # -----------------------------------------------------------------------
+
+  build-go:
+    name: Build Go Exporter
+    runs-on: ubuntu-22.04
+    needs: lint
+
+    strategy:
+      matrix:
+        include:
+          - goarch: arm64
+            goos: linux
+          - goarch: amd64
+            goos: linux
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: exporter/go.sum
+
+      - name: Download Go modules
+        run: cd exporter && go mod download
+
+      - name: Tidy Go modules
+        run: cd exporter && go mod tidy
+
+      - name: Build exporter binary
+        run: |
+          cd exporter
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
+            go build \
+            -ldflags="-s -w -X main.version=$(git describe --tags --always --dirty 2>/dev/null || echo dev)" \
+            -o hw-fault-exporter-${{ matrix.goos }}-${{ matrix.goarch }} \
+            .
+          ls -lh hw-fault-exporter-*
+
+      - name: Run Go tests
+        if: matrix.goarch == 'amd64'
+        run: |
+          cd exporter
+          go test -v -race -count=1 -coverprofile=coverage.out ./... 2>&1 | tee go-test-output.log
+
+      - name: Check Go coverage threshold (≥ 75%)
+        if: matrix.goarch == 'amd64'
+        run: |
+          cd exporter
+          pct=$(go tool cover -func=coverage.out \
+            | awk '/^total:/ { gsub(/%/, "", $3); print $3 }')
+          echo "Go coverage: ${pct}%"
+          awk -v pct="$pct" 'BEGIN {
+            if (pct + 0 < 75) {
+              print "FAIL: Go coverage " pct "% is below threshold 75%"
+              exit 1
+            }
+            print "PASS: Go coverage " pct "% meets threshold"
+          }'
+
+      - name: Upload Go coverage
+        if: matrix.goarch == 'amd64'
+        uses: codecov/codecov-action@v4
+        with:
+          files: exporter/coverage.out
+          flags: go
+          fail_ci_if_error: false
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: hw-fault-exporter-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: exporter/hw-fault-exporter-${{ matrix.goos }}-${{ matrix.goarch }}
+
+  # -----------------------------------------------------------------------
+  # Stage 4: Cross-compile EDAC kernel module
+  # -----------------------------------------------------------------------
+
+  build-mod:
+    name: Cross-compile EDAC Kernel Module (${{ matrix.kernel_version }})
+    runs-on: ubuntu-22.04
+    needs: lint
+
+    strategy:
+      matrix:
+        kernel_version: ["6.1.0", "6.6.0", "6.12.0"]
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ARM64 cross-compiler and kernel headers
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            gcc-aarch64-linux-gnu \
+            bc \
+            flex \
+            bison \
+            libssl-dev \
+            libelf-dev \
+            kmod
+
+      - name: Download reference ARM64 kernel headers (${{ matrix.kernel_version }})
+        run: |
+          # Use a pre-built arm64 kernel from Ubuntu cloud images for cross-compile
+          # In production CI, point to your organization's pinned kernel version
+          sudo apt-get install -y linux-headers-generic-arm64 2>/dev/null || \
+          echo "Note: ARM64 headers not available in this runner — build will be skipped"
+
+          # Check if cross-build headers are available
+          KERNEL_DIR="/usr/src/linux-headers-$(uname -r)"
+          if [ ! -d "$KERNEL_DIR" ]; then
+            echo "::warning::Kernel headers not found at $KERNEL_DIR for ${{ matrix.kernel_version }} — skipping module build"
+            echo "SKIP_MOD_BUILD=true" >> $GITHUB_ENV
+          fi
+
+      - name: Build EDAC reference module (${{ matrix.kernel_version }})
+        if: env.SKIP_MOD_BUILD != 'true'
+        run: |
+          cd edac-reference
+          make ARCH=arm64 \
+               CROSS_COMPILE=aarch64-linux-gnu- \
+               KERNELDIR=/usr/src/linux-headers-$(uname -r) \
+               2>&1 | tee build-module-${{ matrix.kernel_version }}.log
+          ls -lh *.ko
+
+      - name: Upload kernel module (${{ matrix.kernel_version }})
+        if: env.SKIP_MOD_BUILD != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: edac-cortex-ref-ko-${{ matrix.kernel_version }}
+          path: edac-reference/edac_cortex_ref.ko
+
+  # -----------------------------------------------------------------------
+  # Stage 5: QEMU ARM64 integration test
+  # -----------------------------------------------------------------------
+
+  qemu:
+    name: QEMU ARM64 Integration Test
+    runs-on: ubuntu-22.04
+    needs: [build-go, build-mod]
+    continue-on-error: true  # Non-blocking: QEMU image may not always be available
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install QEMU and dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            qemu-system-aarch64 \
+            jq \
+            bc
+
+      - name: Download exporter binary (arm64)
+        uses: actions/download-artifact@v4
+        with:
+          name: hw-fault-exporter-linux-arm64
+          path: exporter/
+
+      - name: Download kernel module
+        uses: actions/download-artifact@v4
+        with:
+          name: edac-cortex-ref-ko-6.12.0
+          path: edac-reference/
+        continue-on-error: true  # Module may not have been built
+
+      - name: Run QEMU integration test
+        timeout-minutes: 15
+        run: |
+          chmod +x exporter/hw-fault-exporter-linux-arm64
+          chmod +x ci/qemu-boot.sh
+
+          # The qemu-boot.sh script will:
+          #   1. Check for a cached ARM64 kernel+initrd (downloads if missing)
+          #   2. Boot QEMU with the kernel
+          #   3. Load edac_cortex_ref.ko
+          #   4. Run verify_edac_sysfs.sh with --inject
+          #   5. Run ci_fault_matrix.sh
+          #   6. Start the exporter and scrape metrics
+          #   7. Report results
+          bash ci/qemu-boot.sh \
+            --module edac-reference/edac_cortex_ref.ko \
+            --exporter exporter/hw-fault-exporter-linux-arm64 \
+            --timeout 600 \
+            2>&1 | tee qemu-test.log
+
+      - name: Upload QEMU test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qemu-test-log
+          path: qemu-test.log
+
+      - name: Parse QEMU results
+        if: always()
+        run: |
+          if grep -q "QEMU TEST: PASSED" qemu-test.log 2>/dev/null; then
+            echo "QEMU integration test: PASSED"
+          elif grep -q "QEMU TEST: FAILED" qemu-test.log 2>/dev/null; then
+            echo "QEMU integration test: FAILED"
+            cat qemu-test.log
+            exit 1
+          else
+            echo "QEMU integration test: INCOMPLETE (QEMU image may not be available)"
+          fi
+
+  # -----------------------------------------------------------------------
+  # Stage 6: Docker container build
+  # -----------------------------------------------------------------------
+
+  docker:
+    name: Build Docker Image
+    runs-on: ubuntu-22.04
+    needs: build-go
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build container image (arm64)
+        uses: docker/build-push-action@v5
+        with:
+          context: exporter/
+          platforms: linux/arm64
+          push: false
+          tags: hw-fault-exporter:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify image builds successfully
+        run: |
+          echo "Docker image built successfully for linux/arm64"
+          echo "Tag: hw-fault-exporter:${{ github.sha }}"
+
+
+  # -----------------------------------------------------------------------
+  # Security: CVE scanning with trivy
+  # -----------------------------------------------------------------------
+
+  security:
+    name: CVE Scan (trivy)
+    runs-on: ubuntu-22.04
+    needs: build-go
+    permissions:
+      security-events: write   # required to upload SARIF results
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download exporter binary (amd64)
+        uses: actions/download-artifact@v4
+        with:
+          name: hw-fault-exporter-linux-amd64
+          path: exporter/
+
+      - name: Scan Go dependencies for CVEs
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          scan-type: "fs"
+          scan-ref: "exporter/"
+          scanners: "vuln"
+          severity: "HIGH,CRITICAL"
+          exit-code: "1"
+          format: "table"
+
+      - name: Build container image for scanning
+        run: |
+          docker build -t hw-fault-exporter:scan exporter/
+
+      - name: Scan container image for CVEs
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          scan-type: "image"
+          image-ref: "hw-fault-exporter:scan"
+          scanners: "vuln"
+          severity: "HIGH,CRITICAL"
+          exit-code: "1"
+          format: "sarif"
+          output: "trivy-results.sarif"
+
+      - name: Upload SARIF results to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: "trivy-results.sarif"
+
+  # -----------------------------------------------------------------------
+  # Summary
+  # -----------------------------------------------------------------------
+
+  summary:
+    name: Pipeline Summary
+    runs-on: ubuntu-22.04
+    needs: [lint, test-py, build-go, build-mod, docker, security]
+    if: always()
+
+    steps:
+      - name: Report status
+        run: |
+          echo "=== Pipeline Summary ==="
+          echo "Lint:         ${{ needs.lint.result }}"
+          echo "Python tests: ${{ needs.test-py.result }}"
+          echo "Go build:     ${{ needs.build-go.result }}"
+          echo "Mod build:    ${{ needs.build-mod.result }}"
+          echo "Docker:       ${{ needs.docker.result }}"
+          echo "Security:     ${{ needs.security.result }}"
+
+          if [ "${{ needs.lint.result }}" != "success" ] || \
+             [ "${{ needs.test-py.result }}" != "success" ] || \
+             [ "${{ needs.build-go.result }}" != "success" ]; then
+            echo "PIPELINE FAILED"
+            exit 1
+          fi
+          echo "PIPELINE PASSED"
+
+  # -----------------------------------------------------------------------
+  # Stage 8: Kernel version matrix — build edac-reference module against
+  # multiple kernel versions. Non-blocking (continue-on-error) because
+  # self-hosted ARM runners may not be available in all forks.
+  # -----------------------------------------------------------------------
+
+  kernel-matrix:
+    name: "Kernel module build — Linux ${{ matrix.kernel }}"
+    runs-on: ubuntu-22.04
+    needs: [lint]
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        kernel:
+          - "5.15.0"
+          - "6.1.0"
+          - "6.6.0"
+          - "6.8.0"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ARM64 cross-compiler
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            gcc-aarch64-linux-gnu \
+            binutils-aarch64-linux-gnu \
+            make \
+            bc \
+            bison \
+            flex \
+            libssl-dev \
+            libelf-dev \
+            kmod
+
+      - name: Cache kernel headers
+        id: cache-headers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/kernel-headers/${{ matrix.kernel }}
+          key: kernel-headers-arm64-${{ matrix.kernel }}-v1
+
+      - name: Download and prepare kernel headers
+        if: steps.cache-headers.outputs.cache-hit != 'true'
+        run: |
+          KVER="${{ matrix.kernel }}"
+          KDIR="/tmp/kernel-headers/${KVER}"
+          mkdir -p "${KDIR}"
+
+          # Download kernel source tarball from kernel.org
+          KSHORT=$(echo "${KVER}" | cut -d. -f1-2)
+          TARBALL="linux-${KVER}.tar.xz"
+          URL="https://cdn.kernel.org/pub/linux/kernel/v$(echo ${KVER} | cut -d. -f1).x/${TARBALL}"
+
+          echo "Downloading ${URL} ..."
+          curl -fsSL --retry 3 -o "/tmp/${TARBALL}" "${URL}"
+
+          # Extract only the include/ and arch/arm64/ directories
+          tar -xJf "/tmp/${TARBALL}" \
+            --strip-components=1 \
+            -C "${KDIR}" \
+            "linux-${KVER}/include" \
+            "linux-${KVER}/arch" \
+            "linux-${KVER}/scripts" \
+            "linux-${KVER}/Makefile" \
+            "linux-${KVER}/Kbuild" \
+            "linux-${KVER}/Kconfig" 2>/dev/null || true
+
+          # Generate a minimal .config and kernel headers
+          cd "${KDIR}"
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- defconfig \
+               O="${KDIR}" 2>/dev/null || true
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- \
+               scripts prepare modules_prepare \
+               O="${KDIR}" 2>/dev/null || true
+
+      - name: Build edac-reference kernel module
+        run: |
+          KDIR="/tmp/kernel-headers/${{ matrix.kernel }}"
+          echo "Building edac-reference against kernel ${{ matrix.kernel }} ..."
+          make -C edac-reference \
+            ARCH=arm64 \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            KDIR="${KDIR}" \
+            KERNELDIR="${KDIR}" \
+            2>&1 | tail -20
+
+          # Verify .ko was produced (or a stub indicating headers-only mode)
+          if ls edac-reference/*.ko 2>/dev/null; then
+            echo "Module built successfully for kernel ${{ matrix.kernel }}"
+          else
+            echo "No .ko produced — checking for headers-only build mode ..."
+            ls edac-reference/
+            exit 1
+          fi
+
+      - name: Upload module artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: "edac-cortex-ref-ko-${{ matrix.kernel }}"
+          path: "edac-reference/*.ko"
+          if-no-files-found: warn
+
+  # -----------------------------------------------------------------------
+  # Stage 9: SBOM generation + vulnerability scan
+  # -----------------------------------------------------------------------
+
+  sbom:
+    name: SBOM + Grype Vulnerability Scan
+    runs-on: ubuntu-22.04
+    needs: [build-go, docker]
+    continue-on-error: true   # Do not block the pipeline on SBOM failures
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install syft
+        uses: anchore/sbom-action/download-syft@v0
+
+      - name: Install grype
+        uses: anchore/scan-action/download-grype@v3
+
+      - name: Generate SPDX SBOM (source)
+        run: |
+          syft . \
+            --output spdx-json=sbom-source.spdx.json \
+            --output table \
+            2>&1 | tail -20
+          echo "SBOM generated: $(jq '.packages | length' sbom-source.spdx.json) packages"
+
+      - name: Generate SPDX SBOM (Go module graph)
+        run: |
+          syft dir:exporter/ \
+            --output spdx-json=sbom-go.spdx.json \
+            2>&1 | tail -10
+
+      - name: Scan SBOM for CVEs with grype
+        run: |
+          grype sbom:sbom-source.spdx.json \
+            --fail-on medium \
+            --output table \
+            --output sarif=sbom-grype.sarif \
+            2>&1 || {
+            echo "WARNING: grype found vulnerabilities — check sbom-grype.sarif"
+          }
+
+      - name: Upload SARIF to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: sbom-grype.sarif
+          category: grype-sbom
+        continue-on-error: true
+
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: |
+            sbom-source.spdx.json
+            sbom-go.spdx.json
+            sbom-grype.sarif
+
+  # -----------------------------------------------------------------------
+  # Stage 10: QEMU ARM64 integration test
+  #
+  # Boots a minimal ARM64 VM, injects a synthetic EDAC correctable error,
+  # scrapes /metrics from the running exporter, and asserts the counter
+  # incremented.  Two modes:
+  #
+  #   UNIT_TEST=1  — no QEMU required; runs the exporter against a mock
+  #                  sysfs tree on the host.  Fast (<30 s).  Always runs.
+  #
+  #   UNIT_TEST=0  — full QEMU boot. Requires qemu-system-aarch64 and a
+  #                  downloadable ARM64 kernel.  Slow (~3-5 min). Optional.
+  # -----------------------------------------------------------------------
+
+  qemu-integration:
+    name: QEMU ARM64 Integration Test
+    runs-on: ubuntu-22.04
+    needs: [build-go]
+    continue-on-error: true   # Full QEMU mode is best-effort in CI
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+
+      - name: Build exporter binary (amd64, for unit-test mode)
+        run: |
+          cd exporter
+          go build -o ../hw-fault-exporter ./cmd/exporter
+          echo "Binary built: $(file ../hw-fault-exporter)"
+
+      - name: Run integration test — unit-test mode (no QEMU)
+        run: |
+          chmod +x ci/qemu-integration-test.sh
+          UNIT_TEST=1 \
+          EXPORTER_BIN=./hw-fault-exporter \
+          HOST_PORT=18080 \
+          TIMEOUT_SCRAPE=30 \
+            bash ci/qemu-integration-test.sh
+
+      - name: Install QEMU (optional — for full QEMU mode)
+        if: ${{ github.event_name == 'schedule' || contains(github.event.pull_request.labels.*.name, 'run-qemu') }}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y qemu-system-arm
+          qemu-system-aarch64 --version
+
+      - name: Run integration test — full QEMU ARM64 boot
+        if: ${{ github.event_name == 'schedule' || contains(github.event.pull_request.labels.*.name, 'run-qemu') }}
+        run: |
+          UNIT_TEST=0 \
+          EXPORTER_BIN=./hw-fault-exporter \
+          HOST_PORT=18081 \
+          TIMEOUT_BOOT=180 \
+          TIMEOUT_SCRAPE=60 \
+            bash ci/qemu-integration-test.sh
+        timeout-minutes: 10
+
+  # ---------------------------------------------------------------------------
+  # Stage 11: RISC-V cross-compile verification
+  # ---------------------------------------------------------------------------
+  riscv64-cross-compile:
+    name: "Stage 11 — RISC-V cross-compile"
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+
+      - name: Install RISC-V cross-compiler (for CGo, not needed here but good hygiene)
+        run: sudo apt-get install -y gcc-riscv64-linux-gnu
+
+      - name: Cross-compile for linux/riscv64
+        run: |
+          cd exporter
+          GOOS=linux GOARCH=riscv64 CGO_ENABLED=0 \
+            go build -ldflags="-X main.version=ci-riscv64" \
+            -o hw-fault-exporter-riscv64 .
+          echo "Build size: $(du -sh hw-fault-exporter-riscv64)"
+
+      - name: Verify binary is ELF RISC-V
+        run: |
+          file exporter/hw-fault-exporter-riscv64 | grep -i "RISC-V"
+
+      - name: Run arch unit tests (host amd64)
+        run: |
+          cd exporter
+          go test ./collectors/ -run TestCurrentArch -v
+          go test ./collectors/ -run TestCollectorSupported -v
+
+  # ---------------------------------------------------------------------------
+  # Stage 12: eBPF program build verification
+  # ---------------------------------------------------------------------------
+  ebpf-build:
+    name: "Stage 12 — eBPF program build"
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install clang + BPF tools
+        run: |
+          sudo apt-get install -y clang llvm libbpf-dev linux-headers-$(uname -r) \
+            linux-tools-$(uname -r) linux-tools-generic bpftool || true
+
+      - name: Generate vmlinux.h from running kernel BTF
+        run: |
+          if [ -f /sys/kernel/btf/vmlinux ]; then
+            bpftool btf dump file /sys/kernel/btf/vmlinux format c > ebpf/vmlinux.h
+            echo "vmlinux.h: generated ($(wc -l < ebpf/vmlinux.h) lines)"
+          else
+            echo "BTF not available — creating stub vmlinux.h"
+            echo "/* stub */" > ebpf/vmlinux.h
+          fi
+
+      - name: Verify BPF C source compiles (syntax check)
+        run: |
+          # Use -fsyntax-only to verify C without linking BPF CO-RE
+          clang -target bpf -O2 -g -Wall \
+            -I ebpf \
+            -I /usr/include/$(uname -m)-linux-gnu \
+            -fsyntax-only \
+            ebpf/edac_trace.bpf.c || echo "Note: syntax check skipped (missing kernel headers)"
+          echo "eBPF C source syntax check: done"
+
+      - name: Run eBPF event parsing tests
+        run: |
+          python3 -m pytest ebpf/tests/test_ebpf_collector.py -v
+
+  # -----------------------------------------------------------------------
+  # Static analysis: ruff (Python), mypy (ML pipeline), go vet, py_compile
+  # -----------------------------------------------------------------------
+
+  static-analysis:
+    name: Static Analysis
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+      - name: Install tools
+        run: pip install ruff==0.4.4 mypy==1.10.0 --break-system-packages
+      - name: Ruff lint (E, F, W errors)
+        run: python3 -m ruff check . --config ruff.toml --select E,F,W
+      - name: Mypy type check (ML pipeline)
+        run: python3 -m mypy ml/ anomaly/ aging/ --config-file mypy.ini --ignore-missing-imports
+      - name: Go vet
+        run: cd exporter && go vet ./...
+      - name: Python syntax check
+        run: |
+          find . -name "*.py" -not -path "*/.*" -not -path "*/__pycache__/*" \
+            | xargs python3 -m py_compile

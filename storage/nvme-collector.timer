@@ -1,0 +1,10 @@
+[Unit]
+Description=Run NVMe SMART collector every 60 seconds
+
+[Timer]
+OnCalendar=*:*:0/60
+AccuracySec=10s
+Persistent=true
+
+[Install]
+WantedBy=timers.target
