@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# build-and-test.yml — GitHub Actions CI pipeline for arm-linux-fault-resilience
+# build-and-test.yml — GitHub Actions CI pipeline for fault-oracle
 #
 # Pipeline stages:
 #

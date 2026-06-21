@@ -1,0 +1,108 @@
+{
+  "title": "DIMM Failure Prediction (ML)",
+  "uid": "dimm-ml-prediction",
+  "tags": ["ml", "prediction", "dimm", "prophet"],
+  "refresh": "5m",
+  "panels": [
+    {
+      "title": "7-Day Failure Probability by DIMM",
+      "type": "heatmap",
+      "datasource": "Prometheus",
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 0},
+      "description": "Prophet model P(fail in 7d) per mc/csrow. Red = imminent failure.",
+      "options": {
+        "calculate": false,
+        "color": {"scheme": "RdYlGn", "reverse": true, "fill": "opacity", "mode": "scheme"},
+        "yAxis": {"unit": "percentunit", "min": 0, "max": 1}
+      },
+      "targets": [{
+        "expr": "failure_probability_7d",
+        "legendFormat": "{{instance}} mc{{mc}} csrow{{csrow}}",
+        "refId": "A"
+      }]
+    },
+    {
+      "title": "DIMMs at Risk (P > 50%)",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 10},
+      "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"steps": [
+        {"value": 0, "color": "green"},
+        {"value": 1, "color": "yellow"},
+        {"value": 5, "color": "red"}
+      ]}}},
+      "targets": [{"expr": "count(failure_probability_7d > 0.5) or vector(0)", "legendFormat": "At risk", "refId": "A"}],
+      "options": {"colorMode": "background"}
+    },
+    {
+      "title": "DIMMs Critical (P > 80%)",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 10},
+      "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"steps": [
+        {"value": 0, "color": "green"},
+        {"value": 1, "color": "red"}
+      ]}}},
+      "targets": [{"expr": "count(failure_probability_7d > 0.8) or vector(0)", "legendFormat": "Critical", "refId": "A"}],
+      "options": {"colorMode": "background"}
+    },
+    {
+      "title": "ML Models Loaded",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 10},
+      "fieldConfig": {"defaults": {"unit": "short"}},
+      "targets": [{"expr": "ml_models_loaded_total", "legendFormat": "Models", "refId": "A"}]
+    },
+    {
+      "title": "Oldest Model Age",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 10},
+      "fieldConfig": {"defaults": {"unit": "h", "thresholds": {"steps": [
+        {"value": 0, "color": "green"},
+        {"value": 24, "color": "yellow"},
+        {"value": 48, "color": "red"}
+      ]}}},
+      "targets": [{"expr": "max(ml_model_age_hours)", "legendFormat": "Max age", "refId": "A"}]
+    },
+    {
+      "title": "Failure Probability Forecast (7d)",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 14},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}},
+      "targets": [{"expr": "failure_probability_7d", "legendFormat": "{{instance}} mc{{mc}}", "refId": "A"}]
+    },
+    {
+      "title": "Survival Curves by DIMM Cohort",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 14},
+      "description": "Kaplan-Meier survival probability at 30/90/180/365 days per cohort.",
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}},
+      "targets": [
+        {"expr": "dimm_survival_probability{days=\"90\"}", "legendFormat": "90d — {{cohort}}", "refId": "A"},
+        {"expr": "dimm_survival_probability{days=\"365\"}", "legendFormat": "1yr — {{cohort}}", "refId": "B"}
+      ]
+    },
+    {
+      "title": "eBPF vs sysfs CE Rate Comparison",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 23},
+      "description": "eBPF captures every CE at event time; sysfs is polled every 10s. Divergence = missed events.",
+      "fieldConfig": {
+        "defaults": {"unit": "cps"},
+        "overrides": [
+          {"matcher": {"id": "byRegexp", "options": "eBPF.*"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "blue"}}, {"id": "custom.lineWidth", "value": 2}]},
+          {"matcher": {"id": "byRegexp", "options": "sysfs.*"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "orange"}}, {"id": "custom.lineStyle", "value": {"fill": "dash", "dash": [8, 8]}}]}
+        ]
+      },
+      "targets": [
+        {"expr": "rate(ebpf_edac_ce_total[1m])", "legendFormat": "eBPF CE rate — {{instance}}", "refId": "A"},
+        {"expr": "rate(edac_correctable_errors_total[1m])", "legendFormat": "sysfs CE rate — {{instance}}", "refId": "B"}
+      ]
+    }
+  ]
+}

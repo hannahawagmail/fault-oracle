@@ -1,0 +1,10 @@
+{"panels": [
+  {"id": 80, "title": "CXL Correctable Error Rate", "type": "timeseries",
+   "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+   "datasource": {"type": "prometheus", "uid": "${datasource}"},
+   "targets": [{"expr": "rate(cxl_correctable_errors_total{job=\"hw-fault-exporter\", node=~\"$node\"}[5m])", "legendFormat": "{{node}}/{{device}}/{{error_type}}", "refId": "A"}]},
+  {"id": 81, "title": "CXL Uncorrectable Errors (increase 1h)", "type": "timeseries",
+   "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+   "datasource": {"type": "prometheus", "uid": "${datasource}"},
+   "targets": [{"expr": "increase(cxl_uncorrectable_errors_total{job=\"hw-fault-exporter\", node=~\"$node\"}[1h])", "legendFormat": "{{node}}/{{device}}/{{error_type}}", "refId": "A"}]}
+]}

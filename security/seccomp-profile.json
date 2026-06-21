@@ -1,0 +1,76 @@
+{
+  "defaultAction": "SCMP_ACT_ERRNO",
+  "defaultErrnoRet": 1,
+  "archMap": [
+    {
+      "architecture": "SCMP_ARCH_AARCH64",
+      "subArchitectures": []
+    },
+    {
+      "architecture": "SCMP_ARCH_X86_64",
+      "subArchitectures": ["SCMP_ARCH_X86", "SCMP_ARCH_X32"]
+    }
+  ],
+  "syscalls": [
+    {
+      "names": [
+        "read", "write", "close", "fstat", "lstat", "stat",
+        "poll", "lseek", "mmap", "mprotect", "munmap", "brk",
+        "rt_sigaction", "rt_sigprocmask", "rt_sigreturn",
+        "ioctl", "pread64", "pwrite64", "readv", "writev",
+        "access", "pipe", "select", "sched_yield",
+        "mremap", "msync", "mincore", "madvise",
+        "dup", "dup2", "nanosleep", "getitimer", "setitimer",
+        "getpid", "sendfile", "socket", "connect", "accept",
+        "sendto", "recvfrom", "sendmsg", "recvmsg", "shutdown",
+        "bind", "listen", "getsockname", "getpeername",
+        "socketpair", "setsockopt", "getsockopt",
+        "clone", "fork", "vfork", "execve",
+        "exit", "wait4", "kill", "uname",
+        "fcntl", "flock", "fsync", "fdatasync", "truncate",
+        "ftruncate", "getdents", "getcwd", "chdir", "rename",
+        "mkdir", "rmdir", "unlink", "readlink",
+        "chmod", "fchmod", "chown", "fchown", "lchown",
+        "umask", "gettimeofday", "getrlimit", "getrusage",
+        "sysinfo", "times", "getuid", "getgid", "getegid",
+        "geteuid", "setgid", "setuid",
+        "getgroups", "setgroups", "getppid", "getpgrp",
+        "setsid", "setpgid", "getpgid",
+        "rt_sigpending", "rt_sigtimedwait", "rt_sigsuspend",
+        "sigaltstack", "utime", "mknod",
+        "personality", "ustat", "statfs", "fstatfs",
+        "sysfs", "getpriority", "setpriority",
+        "prctl", "arch_prctl",
+        "gettid", "futex", "sched_getaffinity", "sched_setaffinity",
+        "set_thread_area", "get_thread_area",
+        "io_setup", "io_destroy", "io_getevents", "io_submit", "io_cancel",
+        "epoll_create", "epoll_ctl", "epoll_wait", "epoll_create1",
+        "getdents64", "set_tid_address", "restart_syscall",
+        "semtimedop", "fadvise64",
+        "clock_gettime", "clock_getres", "clock_nanosleep",
+        "exit_group", "tgkill", "utimes", "waitid",
+        "openat", "mkdirat", "mknodat", "fchownat", "futimesat",
+        "fstatat", "unlinkat", "renameat", "linkat", "symlinkat",
+        "readlinkat", "fchmodat", "faccessat",
+        "pselect6", "ppoll", "set_robust_list", "get_robust_list",
+        "splice", "tee", "sync_file_range", "vmsplice",
+        "move_pages", "utimensat", "epoll_pwait",
+        "signalfd", "timerfd_create", "eventfd",
+        "fallocate", "timerfd_settime", "timerfd_gettime",
+        "signalfd4", "eventfd2", "epoll_create1",
+        "dup3", "pipe2", "inotify_init1",
+        "preadv", "pwritev", "recvmmsg",
+        "accept4", "sendmmsg",
+        "getrandom", "memfd_create",
+        "mlock", "munlock", "mlockall", "munlockall",
+        "openat2", "faccessat2",
+        "rseq", "close_range"
+      ],
+      "action": "SCMP_ACT_ALLOW"
+    },
+    {
+      "names": ["open", "creat"],
+      "action": "SCMP_ACT_ALLOW"
+    }
+  ]
+}

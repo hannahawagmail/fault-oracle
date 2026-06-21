@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Architecture
 
-This document describes the system architecture of `arm-linux-fault-resilience`.
+This document describes the system architecture of `fault-oracle`.
 
 ---
 

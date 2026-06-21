@@ -1,0 +1,180 @@
+#!/usr/bin/env bpftrace
+// SPDX-License-Identifier: Apache-2.0
+// detect-oom-pressure.bt — Monitor memory allocation failures and OOM events
+//
+// Usage: sudo bpftrace detect-oom-pressure.bt
+//
+// Probes:
+//   kprobe:out_of_memory          — OOM killer invoked (any allocation failure)
+//   tracepoint:oom:mark_victim    — OOM killer chose a victim process to kill
+//   tracepoint:mm:mm_page_alloc_extfrag — memory fragmentation event
+//
+// Output format (parseable by ebpf-to-prometheus.sh):
+//   ALERT: OOM invoked by comm=<name> pid=<pid>
+//   ALERT: OOM victim: comm=<name> pid=<pid> oom_score_adj=<n>
+//   STAT oom_invoke comm=<name> count=<n>
+//   STAT oom_victim comm=<name> count=<n>
+//   STAT extfrag    order=<n> migratetype=<n> count=<n>
+//
+// Requirements:
+//   - Linux kernel >= 5.8, bpftrace >= 0.14
+//   - Root or CAP_BPF + CAP_PERFMON
+
+BEGIN
+{
+    printf("detect-oom-pressure.bt started\n");
+    printf("Monitoring: OOM invocations, OOM victims, memory fragmentation\n");
+    printf("---\n");
+}
+
+// ---------------------------------------------------------------------------
+// kprobe:out_of_memory
+// Fires when the OOM killer is invoked to resolve an allocation failure.
+// The kernel function signature (5.10+):
+//   bool out_of_memory(struct oom_control *oc)
+// oc->chosen will be filled in with the victim task_struct after selection.
+// At entry we capture who triggered the OOM (the allocating process).
+// ---------------------------------------------------------------------------
+kprobe:out_of_memory
+{
+    printf("ALERT: OOM invoked by comm=%s pid=%d\n", comm, pid);
+
+    @oom_invoke_count[comm] = count();
+    @oom_invoke_total = count();
+
+    // Capture a stack trace to help diagnose what allocation path failed
+    printf("  Allocation stack:\n");
+    print(kstack(5));
+}
+
+kretprobe:out_of_memory
+{
+    // retval=1 means OOM killer actually killed something; 0 means it didn't
+    // (e.g., a task was already dying and freed enough memory)
+    if (retval == 1) {
+        @oom_kill_succeeded[comm] = count();
+        printf("STAT oom_kill_succeeded comm=%s count=%lld\n",
+               comm, @oom_kill_succeeded[comm]);
+    } else {
+        printf("STAT oom_kill_noop comm=%s (victim already dying)\n", comm);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// tracepoint:oom:mark_victim
+// Stable tracepoint that fires when the OOM killer has selected its victim.
+// Fields: pid (of victim), comm (of victim).
+// Note: oom_score_adj is not directly in this tracepoint; we read it from
+// the task via the oom_control struct if available, otherwise omit.
+// ---------------------------------------------------------------------------
+tracepoint:oom:mark_victim
+{
+    printf("ALERT: OOM victim: comm=%s pid=%d\n", args->comm, args->pid);
+
+    @oom_victim_count[args->comm] = count();
+    @oom_victim_total = count();
+
+    // Record victim with timestamp for rate calculation
+    @victim_ts[args->comm, args->pid] = nsecs;
+}
+
+// ---------------------------------------------------------------------------
+// tracepoint:mm:mm_page_alloc_extfrag
+// Fires when the page allocator falls back to a different migratetype zone
+// due to fragmentation. High rates indicate memory fragmentation is
+// preventing large contiguous allocations — a precursor to OOM on systems
+// with DMA zones or large-order allocations (e.g., GPU drivers on ARM).
+//
+// Fields: order (allocation size = 2^order pages), alloc_migratetype,
+//         fallback_migratetype, change_ownership
+// ---------------------------------------------------------------------------
+tracepoint:mm:mm_page_alloc_extfrag
+{
+    @extfrag_by_order[args->alloc_order] = count();
+    @extfrag_by_migratetype[args->fallback_migratetype] = count();
+    @extfrag_total = count();
+}
+
+// ---------------------------------------------------------------------------
+// Track low-memory watermark crossings via kprobe on __alloc_pages_slowpath
+// This fires when the fast page allocator path fails and the system must
+// run memory reclaim before fulfilling the request.
+// ---------------------------------------------------------------------------
+kprobe:__alloc_pages_slowpath,
+kprobe:__alloc_pages_slowpath.constprop.0
+{
+    @slowpath_by_comm[comm] = count();
+}
+
+// ---------------------------------------------------------------------------
+// Track memory compaction — triggered when fragmentation is so severe that
+// the kernel must compact pages to create contiguous free blocks.
+// ---------------------------------------------------------------------------
+kprobe:try_to_compact_pages
+{
+    @compaction_attempts[comm] = count();
+}
+
+// ---------------------------------------------------------------------------
+// Interval reporting: emit STAT lines every 10 seconds for Prometheus parsing
+// ---------------------------------------------------------------------------
+interval:s:10
+{
+    $ts = elapsed / 1000000000;
+    printf("=== OOM pressure report at %lld s ===\n", $ts);
+
+    printf("STAT oom_invoke_total count=%lld\n", @oom_invoke_total);
+    printf("STAT oom_victim_total count=%lld\n", @oom_victim_total);
+    printf("STAT extfrag_total count=%lld\n", @extfrag_total);
+
+    printf("\nOOM invocations by process:\n");
+    print(@oom_invoke_count);
+
+    printf("\nOOM victims by process:\n");
+    print(@oom_victim_count);
+
+    printf("\nMemory fragmentation fallbacks by allocation order:\n");
+    print(@extfrag_by_order);
+
+    printf("\nSlow-path allocations by process:\n");
+    print(@slowpath_by_comm);
+
+    printf("\nMemory compaction attempts by process:\n");
+    print(@compaction_attempts);
+
+    printf("---\n");
+
+    // Reset interval counters but keep cumulative totals
+    clear(@slowpath_by_comm);
+    clear(@compaction_attempts);
+}
+
+// ---------------------------------------------------------------------------
+// END: final summary
+// ---------------------------------------------------------------------------
+END
+{
+    printf("\n=== detect-oom-pressure.bt final summary ===\n");
+    printf("Total OOM invocations: %lld\n", @oom_invoke_total);
+    printf("Total OOM victims:     %lld\n", @oom_victim_total);
+    printf("Total extfrag events:  %lld\n", @extfrag_total);
+
+    printf("\nOOM victims by comm (cumulative):\n");
+    print(@oom_victim_count);
+
+    printf("\nOOM invocations by comm (cumulative):\n");
+    print(@oom_invoke_count);
+
+    printf("\nFragmentation by allocation order:\n");
+    print(@extfrag_by_order);
+
+    clear(@oom_invoke_count);
+    clear(@oom_victim_count);
+    clear(@oom_kill_succeeded);
+    clear(@extfrag_by_order);
+    clear(@extfrag_by_migratetype);
+    clear(@victim_ts);
+    clear(@oom_invoke_total);
+    clear(@oom_victim_total);
+    clear(@extfrag_total);
+}

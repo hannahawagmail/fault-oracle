@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# Contributing to arm-linux-fault-resilience
+# Contributing to fault-oracle
 
 Thank you for your interest in contributing. This repository is a reference implementation
 for ARM Linux hardware fault resilience. Contributions that improve accuracy, expand coverage,

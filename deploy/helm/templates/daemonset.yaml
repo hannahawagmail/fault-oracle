@@ -1,0 +1,56 @@
+{{- /* SPDX-License-Identifier: Apache-2.0 */ -}}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "hw-fault-exporter.fullname" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "hw-fault-exporter.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "hw-fault-exporter.selectorLabels" . | nindent 6 }}
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        {{- include "hw-fault-exporter.selectorLabels" . | nindent 8 }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ .Values.service.port | quote }}
+    spec:
+      serviceAccountName: {{ include "hw-fault-exporter.fullname" . }}
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 8 }}
+      containers:
+        - name: hw-fault-exporter
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --listen-addr=:{{ .Values.service.port }}
+            {{- range .Values.extraArgs }}
+            - {{ . }}
+            {{- end }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.service.port }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: sys
+              mountPath: /sys
+              readOnly: true
+      volumes:
+        - name: sys
+          hostPath:
+            path: /sys
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}

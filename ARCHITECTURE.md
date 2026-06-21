@@ -1,6 +1,6 @@
 # Architecture
 
-This document describes the engineering design of the arm-linux-fault-resilience reference
+This document describes the engineering design of the fault-oracle reference
 implementation: why each layer exists, how the layers compose, and what failure modes each
 layer is designed to catch.
 

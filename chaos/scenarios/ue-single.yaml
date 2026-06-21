@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0
+# chaos/scenarios/ue-single.yaml
+name: ue-single
+description: |
+  Inject a single uncorrectable memory error (UE).
+  Expects EDACUncorrectableError alert to fire immediately (for: 0m).
+
+inject:
+  script: fault-injection/inject-ue.sh
+  args: "--mc 0 --count 1"
+
+expect:
+  alert: EDACUncorrectableError
+  alert_timeout_s: 120
+  resolve_timeout_s: 300
+
+cleanup:
+  script: fault-injection/clear-ue.sh
+
+labels:
+  severity: critical
+  subsystem: edac

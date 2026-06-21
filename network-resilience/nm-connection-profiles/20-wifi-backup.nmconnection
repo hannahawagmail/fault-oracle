@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: Apache-2.0
+# 20-wifi-backup.nmconnection — WiFi backup connection (WPA2-PSK)
+# Priority 50: used when eth0 is unavailable
+#
+# Deploy: cp 20-wifi-backup.nmconnection /etc/NetworkManager/system-connections/
+#         chmod 600 /etc/NetworkManager/system-connections/20-wifi-backup.nmconnection
+#         nmcli connection reload
+#
+# SECURITY: Do NOT store the PSK in plaintext in production.
+# Use: nmcli connection modify wifi-backup wifi-security.psk "REAL_PASSWORD"
+# NM will write it to the keyfile with 600 permissions; the plaintext below is
+# only a placeholder that must be replaced before deployment.
+#
+# autoconnect-priority=50: lower than eth0 (100) so NM activates WiFi only when
+# the primary wired connection is absent or has exhausted its retries.
+#
+# route-metric=200: kernel prefers eth0 (metric 100) over WiFi (metric 200) even
+# if both interfaces happen to be active at the same time.
+
+[connection]
+id=wifi-backup
+uuid=b2c3d4e5-f6a7-8901-bcde-f12345678901
+type=wifi
+autoconnect=true
+# Priority 50: second choice, below primary Ethernet (100)
+autoconnect-priority=50
+# Retry twice; WPA handshake failures count as one attempt each
+autoconnect-retries=2
+timestamp=0
+
+[wifi]
+ssid=BackupNetwork
+mode=infrastructure
+band=auto
+hidden=false
+
+[wifi-security]
+key-mgmt=wpa-psk
+# REPLACE_WITH_ACTUAL_PASSWORD — set securely with:
+#   nmcli con modify wifi-backup wifi-security.psk "REAL_PASSWORD"
+psk=REPLACE_WITH_ACTUAL_PASSWORD
+auth-alg=open
+
+[ipv4]
+method=auto
+# route-metric=200: kernel falls back to WiFi only when eth0 routes (metric 100)
+# are absent. Having a higher metric means this interface is used as secondary.
+route-metric=200
+dns-search=
+ignore-auto-dns=false
+
+[ipv6]
+method=auto
+addr-gen-mode=default

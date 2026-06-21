@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: v1
+kind: Service
+metadata:
+  name: hw-fault-exporter
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: hw-fault-exporter
+    app.kubernetes.io/component: metrics
+spec:
+  selector:
+    app.kubernetes.io/name: hw-fault-exporter
+  ports:
+    - name: metrics
+      port: 9101
+      targetPort: metrics
+      protocol: TCP
+  clusterIP: None   # Headless — scrape individual pod IPs

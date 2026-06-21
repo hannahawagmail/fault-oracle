@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-The arm-linux-fault-resilience project has a generally sound security posture: the Kubernetes DaemonSet enforces a non-root, read-only container with capabilities dropped to ALL, and the AppArmor/seccomp profiles narrow the kernel attack surface significantly. Two critical gaps exist that require immediate attention — the Alertmanager webhook endpoint has no authentication, allowing any network-reachable attacker to trigger recovery actions, and the ML pipeline loads pickle model files without input validation, exposing arbitrary code execution through a tampered PVC. A third high-severity issue is the unredacted transmission of hostnames, DIMM slot labels, and network topology to the external Anthropic API, which conflicts with standard data-residency requirements in regulated environments.
+The fault-oracle project has a generally sound security posture: the Kubernetes DaemonSet enforces a non-root, read-only container with capabilities dropped to ALL, and the AppArmor/seccomp profiles narrow the kernel attack surface significantly. Two critical gaps exist that require immediate attention — the Alertmanager webhook endpoint has no authentication, allowing any network-reachable attacker to trigger recovery actions, and the ML pipeline loads pickle model files without input validation, exposing arbitrary code execution through a tampered PVC. A third high-severity issue is the unredacted transmission of hostnames, DIMM slot labels, and network topology to the external Anthropic API, which conflicts with standard data-residency requirements in regulated environments.
 
 ---
 
@@ -253,7 +253,7 @@ The length guard `if len(raw) < int(unsafe.Sizeof(mcEvent{}))` precedes the cast
 
 **Area:** supply-chain
 
-**Issue:** The DaemonSet references `ghcr.io/hanna-hawa/arm-linux-fault-resilience/hw-fault-exporter:latest`. The `latest` tag is mutable — a compromised registry push can silently replace the image on the next pod restart without any manifest change. Combined with `imagePullPolicy: IfNotPresent`, existing nodes will keep the old image but newly added nodes will pull whatever `latest` resolves to at join time.
+**Issue:** The DaemonSet references `ghcr.io/hanna-hawa/fault-oracle/hw-fault-exporter:latest`. The `latest` tag is mutable — a compromised registry push can silently replace the image on the next pod restart without any manifest change. Combined with `imagePullPolicy: IfNotPresent`, existing nodes will keep the old image but newly added nodes will pull whatever `latest` resolves to at join time.
 
 **Recommendation:** Pin to an immutable digest: `hw-fault-exporter@sha256:<digest>`. Use a Kubernetes `ImagePolicy` admission webhook or Sigstore/Cosign signature verification to enforce signed images in production.
 

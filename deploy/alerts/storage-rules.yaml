@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: Apache-2.0
+groups:
+  - name: storage-hardware
+    rules:
+      - alert: NVMeCriticalWarning
+        expr: nvme_critical_warning > 0
+        for: 0m
+        labels: {severity: critical}
+        annotations:
+          summary: "NVMe {{ $labels.device }} critical warning flag set"
+      - alert: NVMeMediaErrors
+        expr: increase(nvme_media_errors_total[1h]) > 0
+        for: 0m
+        labels: {severity: critical}
+        annotations:
+          summary: "NVMe {{ $labels.device }} new media errors in last hour"
+      - alert: NVMeWearCritical
+        expr: nvme_percentage_used > 90
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "NVMe {{ $labels.device }} {{ $value }}% worn"
+      - alert: SATAReallocatedSectors
+        expr: increase(sata_smart_value{attribute="reallocated_sectors"}[1h]) > 0
+        for: 0m
+        labels: {severity: warning}
+        annotations:
+          summary: "SATA {{ $labels.device }} new reallocated sectors"
+      - alert: SATAPendingSectors
+        expr: sata_smart_value{attribute="pending_sectors"} > 0
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "SATA {{ $labels.device }} {{ $value }} pending sectors"
+      - alert: StorageWearOutSoon
+        expr: storage_wear_time_to_failure_days < 90
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.device }} wear-out in ~{{ $value }} days"
+      - alert: StorageControllerFailedDisk
+        expr: storage_controller_failed_disks > 0
+        for: 0m
+        labels: {severity: critical}
+        annotations:
+          summary: "RAID controller {{ $labels.controller }} reports {{ $value }} failed disk(s)"

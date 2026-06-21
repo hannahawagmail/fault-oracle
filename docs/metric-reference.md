@@ -1,7 +1,7 @@
 # Metric Reference
 Generated: 2026-06-21
 
-Every metric emitted by the arm-linux-fault-resilience system, grouped by subsystem.
+Every metric emitted by the fault-oracle system, grouped by subsystem.
 Metrics marked ⚠ appear in alert rules and must be present for alerting to function.
 
 Sources: Go exporter (`exporter/collectors/*.go`), Python textfile collectors (`ml/`, `anomaly/`, `aging/`, `bmc/`, `gpu/`, `network/`, `storage/`, `power_cxl/`), and alert rule `expr:` fields (`deploy/alerts/*.yaml`).

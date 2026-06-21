@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
   - name: Hardware questions
-    url: https://github.com/hanna-hawa/arm-linux-fault-resilience/discussions
+    url: https://github.com/hanna-hawa/fault-oracle/discussions
     about: Ask questions about specific hardware or board support here.

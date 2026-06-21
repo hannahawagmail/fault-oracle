@@ -1,0 +1,94 @@
+# SPDX-License-Identifier: Apache-2.0
+# security/apparmor-profile — AppArmor profile for hw-fault-exporter
+# on bare-metal ARM64 hosts (systemd unit deployment).
+#
+# Install:
+#   sudo cp security/apparmor-profile /etc/apparmor.d/usr.local.bin.hw-fault-exporter
+#   sudo apparmor_parser -r /etc/apparmor.d/usr.local.bin.hw-fault-exporter
+#
+# Enable in systemd unit via:
+#   AppArmorProfile=usr.local.bin.hw-fault-exporter
+
+#include <tunables/global>
+
+/usr/local/bin/hw-fault-exporter {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+
+  # -----------------------------------------------------------------------
+  # Binary and libraries
+  # -----------------------------------------------------------------------
+  /usr/local/bin/hw-fault-exporter  mr,
+  /usr/local/lib/**                 mr,
+  /lib/**                           mr,
+  /lib64/**                         mr,
+
+  # -----------------------------------------------------------------------
+  # sysfs — hardware error counters (read-only)
+  # -----------------------------------------------------------------------
+  /sys/devices/system/edac/**       r,
+  /sys/bus/pci/devices/**/aer_*     r,
+  /sys/bus/pci/devices/**/config    r,
+  /sys/class/net/**/statistics/**   r,
+  /sys/class/net/**/operstate       r,
+  /sys/class/net/**/speed           r,
+  /sys/class/thermal/**             r,
+  /sys/devices/system/cpu/**/cpufreq/** r,
+  /sys/devices/system/node/**       r,
+  /sys/firmware/acpi/tables/BERT    r,
+
+  # -----------------------------------------------------------------------
+  # /proc (Go runtime, self-introspection only)
+  # -----------------------------------------------------------------------
+  /proc/self/**                     r,
+  /proc/sys/net/**                  r,
+
+  # Deny writing to /proc
+  deny /proc/**/mem                 rw,
+  deny /proc/sysrq-trigger          rw,
+
+  # -----------------------------------------------------------------------
+  # TLS certificates
+  # -----------------------------------------------------------------------
+  /etc/hw-fault-exporter/tls/**     r,
+
+  # -----------------------------------------------------------------------
+  # Logs
+  # -----------------------------------------------------------------------
+  /var/log/hw-fault-exporter/       rw,
+  /var/log/hw-fault-exporter/**     rw,
+
+  # -----------------------------------------------------------------------
+  # Temp files (metric rendering scratch space)
+  # -----------------------------------------------------------------------
+  /tmp/hw-fault-*                   rw,
+
+  # -----------------------------------------------------------------------
+  # Networking — bind only, no outbound connects
+  # -----------------------------------------------------------------------
+  network tcp,
+  network netlink,
+
+  # -----------------------------------------------------------------------
+  # Capability restrictions
+  # -----------------------------------------------------------------------
+  capability net_bind_service,   # bind port < 1024 if needed
+  capability dac_read_search,    # read sysfs as non-root
+
+  # Deny dangerous capabilities
+  deny capability sys_ptrace,
+  deny capability sys_admin,
+  deny capability sys_module,
+  deny capability sys_rawio,
+  deny capability net_admin,
+  deny capability setuid,
+  deny capability setgid,
+
+  # -----------------------------------------------------------------------
+  # Deny filesystem writes outside designated paths
+  # -----------------------------------------------------------------------
+  deny /etc/**                      w,
+  deny /usr/**                      w,
+  deny /bin/**                      w,
+  deny /sbin/**                     w,
+}

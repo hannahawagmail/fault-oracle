@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: Apache-2.0
+# .gitleaks.toml — gitleaks secret scanning configuration
+# Docs: https://github.com/gitleaks/gitleaks#configuration
+
+title = "fault-oracle gitleaks config"
+
+[extend]
+# Start from the default ruleset
+useDefault = true
+
+[[allowlists]]
+description = "Allow example/test credential patterns"
+regexes = [
+  # Placeholder keys in test fixtures and docs
+  '''EXAMPLE_KEY''',
+  '''YOUR_API_KEY''',
+  '''<your[_-].*>''',
+  # SPDX identifiers (contain "Apache" which can trigger some rules)
+  '''SPDX-License-Identifier''',
+]
+paths = [
+  '''tests/.*''',
+  '''docs/.*''',
+  '''.*\.md$''',
+]
+
+[[allowlists]]
+description = "Allow test hex values that resemble keys but are MCE status registers"
+regexes = [
+  # MCE STATUS register values used in test fixtures
+  '''0x[Bb][Ee]20000000000402''',
+  '''0xbc20000000000402''',
+]

@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: Apache-2.0
+groups:
+  - name: bmc-hardware
+    rules:
+      - alert: IPMISelCriticalEvent
+        expr: increase(ipmi_sel_event_total{severity="critical"}[5m]) > 0
+        for: 0m
+        labels: {severity: critical}
+        annotations:
+          summary: "IPMI SEL critical event on {{ $labels.instance }}"
+      - alert: IPMIFanStopped
+        expr: ipmi_sensor_value{sensor_type="fan"} == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: "Fan {{ $labels.sensor }} appears stopped"
+      - alert: IPMISensorThresholdBreached
+        expr: ipmi_sensor_threshold_breach == 1
+        for: 1m
+        labels: {severity: warning}
+        annotations:
+          summary: "IPMI sensor {{ $labels.sensor }} threshold breached"
+      - alert: RedfishSystemDegraded
+        expr: redfish_system_health < 1
+        for: 2m
+        labels: {severity: warning}
+        annotations:
+          summary: "Redfish {{ $labels.component }} health degraded ({{ $value }})"
+      - alert: PSUFailure
+        expr: redfish_psu_up == 0
+        for: 0m
+        labels: {severity: critical}
+        annotations:
+          summary: "PSU {{ $labels.psu }} not enabled"
+      - alert: BMCTemperatureCritical
+        expr: redfish_temperature_celsius > 80
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: "{{ $labels.sensor }} at {{ $value }}°C"

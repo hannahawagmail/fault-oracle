@@ -105,7 +105,7 @@ real hardware or external services and cannot safely run in CI:
 pip install pytest-cov
 
 # Run all covered packages
-cd /path/to/arm-linux-fault-resilience
+cd /path/to/fault-oracle
 python3 -m pytest \
   ml/tests/ anomaly/tests/ aging/tests/ \
   gpu/tests/ storage/tests/ bmc/tests/ \

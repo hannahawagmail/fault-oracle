@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # NIW Technical Evidence Map
 
-This document maps each module of `arm-linux-fault-resilience` to specific
+This document maps each module of `fault-oracle` to specific
 technical contributions relevant to an EB-2 National Interest Waiver (NIW)
 petition under the **Substantial Merit and National Importance** and
 **Well-Positioned to Advance the Endeavor** prongs.

@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0
+# Requires: kube-prometheus-stack or prometheus-operator CRDs
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: hw-fault-exporter
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: hw-fault-exporter
+    release: kube-prometheus-stack   # must match Prometheus operator's labelSelector
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hw-fault-exporter
+  endpoints:
+    - port: metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      path: /metrics
+  namespaceSelector:
+    matchNames:
+      - monitoring

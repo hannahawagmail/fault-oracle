@@ -1,0 +1,92 @@
+# SPDX-License-Identifier: Apache-2.0
+# recording-rules.yml — Pre-computed metrics for dashboard performance
+#
+# Recording rules materialise expensive range-vector queries as instant-vector
+# time series. Grafana dashboards that fan out across many devices or nodes
+# benefit significantly: a pre-computed rule is evaluated once by Prometheus,
+# whereas an ad-hoc query is re-evaluated per panel per dashboard load.
+#
+# Naming convention follows the Prometheus community standard:
+#   <aggregation_level>:<metric_name>:<aggregation_and_range>
+#
+# Usage (standalone Prometheus):
+#   Add to prometheus.yml rule_files: [recording-rules.yml]
+#
+# Usage (Kubernetes / Prometheus Operator):
+#   Wrap in a PrometheusRule CRD — see dashboards/README.md for an example.
+
+groups:
+
+  # ---------------------------------------------------------------------------
+  # EDAC recording rules
+  # ---------------------------------------------------------------------------
+  - name: edac.recording
+    interval: 60s   # Evaluate every 60 s; dashboards query the recorded series.
+    rules:
+
+      # job:edac_ce:rate1h
+      # Pre-computes correctable error rate per hour, summed by
+      # job, instance, and controller. This is the primary fleet-level CE
+      # metric used by the "CE Rate per Controller" Grafana panel.
+      # Summing over csrow/channel here produces a controller-level view;
+      # the per-channel drill-down still uses the raw metric directly.
+      - record: job:edac_ce:rate1h
+        expr: >
+          sum by (job, instance, controller) (
+            rate(edac_controller_ce_total[1h])
+          )
+
+      # job:edac_ue:increase5m
+      # Tracks uncorrectable error increases over a 5-minute window.
+      # Summing across csrows on the same controller makes it easy to alert
+      # on "any UE on this node" without duplicating per-csrow vectors.
+      - record: job:edac_ue:increase5m
+        expr: >
+          sum by (job, instance, controller) (
+            increase(edac_controller_ue_total[5m])
+          )
+
+  # ---------------------------------------------------------------------------
+  # PCIe AER recording rules
+  # ---------------------------------------------------------------------------
+  - name: pcie_aer.recording
+    interval: 60s
+    rules:
+
+      # job:pcie_aer_correctable:rate1h
+      # Pre-computes per-device, per-error-type correctable AER rate.
+      # The fleet-level "AER Correctable Rate" panel groups by device and
+      # error_type; pre-recording avoids repeated scans of all PCIe devices
+      # in the raw metric.
+      - record: job:pcie_aer_correctable:rate1h
+        expr: >
+          sum by (job, instance, device, error_type) (
+            rate(pcie_aer_correctable_total[1h])
+          )
+
+  # ---------------------------------------------------------------------------
+  # MCE recording rules
+  # ---------------------------------------------------------------------------
+  - name: mce.recording
+    interval: 60s
+    rules:
+
+      # job:mce_corrected:rate1h
+      # Hourly rate of corrected machine check events. ARM GHES and x86 mcelog
+      # both contribute to mce_events_total{severity="corrected"}. The recording
+      # rule normalises across sources so the dashboard panel needs no filtering.
+      - record: job:mce_corrected:rate1h
+        expr: rate(mce_events_total{severity="corrected"}[1h])
+
+  # ---------------------------------------------------------------------------
+  # Exporter health recording rules
+  # ---------------------------------------------------------------------------
+  - name: exporter.recording
+    interval: 60s
+    rules:
+
+      # job:hw_fault_exporter:scrape_error_rate5m
+      # 5-minute rolling scrape error rate. Used by the "Exporter Health" panel
+      # to surface degrading sysfs access without requiring a histogram query.
+      - record: job:hw_fault_exporter:scrape_error_rate5m
+        expr: rate(hw_fault_exporter_scrape_errors_total[5m])

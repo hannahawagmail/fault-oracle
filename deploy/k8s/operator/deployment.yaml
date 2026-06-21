@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hw-fault-exporter-operator
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: hw-fault-exporter-operator
+    app.kubernetes.io/component: operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hw-fault-exporter-operator
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hw-fault-exporter-operator
+    spec:
+      serviceAccountName: hw-fault-exporter-operator
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+      containers:
+        - name: operator
+          image: ghcr.io/hanna-hawa/hw-fault-exporter-operator:latest  # pin to SHA in production
+          args:
+            - --prometheus-url=http://prometheus-operated.monitoring.svc:9090
+            - --namespace=monitoring
+            - --daemonset=hw-fault-exporter
+            - --poll-interval=60s
+            - --max-restarts=3
+            - --log-level=info
+          resources:
+            requests: {cpu: "10m", memory: "32Mi"}
+            limits:   {cpu: "100m", memory: "64Mi"}
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]

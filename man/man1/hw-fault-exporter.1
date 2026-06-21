@@ -1,0 +1,145 @@
+.\" SPDX-License-Identifier: Apache-2.0
+.TH HW-FAULT-EXPORTER 1 "2024-01-15" "arm-linux-fault-resilience" "User Commands"
+.SH NAME
+hw-fault-exporter \- Prometheus exporter for ARM Linux hardware fault counters
+.SH SYNOPSIS
+.B hw-fault-exporter
+[\fB\-\-listen\-addr\fR \fIADDR\fR]
+[\fB\-\-sysfs\-root\fR \fIPATH\fR]
+[\fB\-\-metrics\-path\fR \fIPATH\fR]
+[\fB\-\-log\-level\fR \fILEVEL\fR]
+[\fB\-\-scrape\-timeout\fR \fIDURATION\fR]
+[\fB\-\-once\fR]
+[\fB\-\-no\-edac\fR]
+[\fB\-\-no\-mce\fR]
+[\fB\-\-no\-aer\fR]
+[\fB\-\-version\fR]
+.SH DESCRIPTION
+.B hw-fault-exporter
+scrapes hardware error counters from the Linux sysfs filesystem and exposes
+them as Prometheus metrics. Three subsystems are covered:
+.TP
+.B EDAC
+Error Detection And Correction \- DRAM correctable and uncorrectable error
+counters from \fI/sys/devices/system/edac/\fR.
+.TP
+.B MCE
+Machine Check Events \- processor hardware error events from ACPI APEI/GHES
+or \fI/dev/mcelog\fR.
+.TP
+.B PCIe AER
+Advanced Error Reporting \- PCIe correctable and uncorrectable error counters
+from \fI/sys/bus/pci/devices/*/aer_dev_*\fR.
+.SH OPTIONS
+.TP
+.B \-\-listen\-addr \fIADDR\fR
+TCP address to listen on for Prometheus scrapes. Default: \fB:9101\fR.
+.TP
+.B \-\-sysfs\-root \fIPATH\fR
+Root of the sysfs filesystem. Override for testing with a mock sysfs tree.
+Default: \fB/sys\fR.
+.TP
+.B \-\-metrics\-path \fIPATH\fR
+HTTP path for the Prometheus metrics endpoint. Default: \fB/metrics\fR.
+.TP
+.B \-\-log\-level \fILEVEL\fR
+Logging verbosity. One of: \fBdebug\fR, \fBinfo\fR, \fBwarn\fR, \fBerror\fR.
+Default: \fBinfo\fR.
+.TP
+.B \-\-scrape\-timeout \fIDURATION\fR
+Maximum time allowed for a single scrape cycle, e.g. \fB10s\fR, \fB30s\fR.
+Default: \fB10s\fR.
+.TP
+.B \-\-once
+Single-shot mode: scrape all collectors once, print metrics in Prometheus
+text format to stdout, and exit. No HTTP server is started. Useful with
+cron and node_exporter's textfile collector.
+.TP
+.B \-\-no\-edac
+Disable the EDAC collector.
+.TP
+.B \-\-no\-mce
+Disable the MCE collector.
+.TP
+.B \-\-no\-aer
+Disable the PCIe AER collector.
+.TP
+.B \-\-version
+Print the version string and exit.
+.SH HTTP ENDPOINTS
+.TP
+.B /metrics
+Prometheus text-format metrics. Scraped by Prometheus at the configured
+interval.
+.TP
+.B /healthz
+Liveness probe. Returns HTTP 200 while the process is running.
+.TP
+.B /readyz
+Readiness probe. Returns HTTP 503 until the first successful \fI/metrics\fR
+scrape completes, then returns 200. Used by Kubernetes to delay traffic
+until the exporter is warmed up.
+.SH METRICS
+.TP
+.B edac_correctable_errors_total{controller, csrow, channel}
+Cumulative correctable EDAC errors per channel since boot.
+.TP
+.B edac_uncorrectable_errors_total{controller, csrow}
+Cumulative uncorrectable EDAC errors per csrow since boot.
+.TP
+.B edac_controller_ce_total{controller}
+Total correctable errors on the memory controller since boot.
+.TP
+.B edac_controller_ue_total{controller}
+Total uncorrectable errors on the memory controller since boot.
+.TP
+.B pcie_aer_correctable_total{device, error_type}
+Cumulative PCIe AER correctable errors per device.
+.TP
+.B pcie_aer_uncorrectable_total{device, error_type, severity}
+Cumulative PCIe AER uncorrectable errors (nonfatal or fatal).
+.TP
+.B mce_events_total{severity, bank, source}
+Total machine check events by severity and bank.
+.TP
+.B fault_resilience_collector_up{collector}
+1 if the collector's sysfs path is accessible, 0 if the subsystem is absent.
+.SH EXAMPLES
+Start the exporter on all interfaces, port 9101:
+.PP
+.nf
+.RS
+hw-fault-exporter \-\-listen\-addr :9101
+.RE
+.fi
+.PP
+Single-shot scrape for cron + textfile collector:
+.PP
+.nf
+.RS
+hw-fault-exporter \-\-once > /var/lib/node_exporter/fault.prom
+.RE
+.fi
+.PP
+Test against a mock sysfs tree:
+.PP
+.nf
+.RS
+hw-fault-exporter \-\-sysfs\-root /tmp/mock\-sysfs \-\-once
+.RE
+.fi
+.SH EXIT STATUS
+.TP
+.B 0
+Success (or clean shutdown via SIGTERM/SIGINT).
+.TP
+.B 1
+Fatal error (port in use, permission denied, etc.).
+.SH SEE ALSO
+.BR parse_edac_trace.py (1),
+.BR prometheus (1),
+.BR node_exporter (1)
+.SH AUTHORS
+Hanna Hawa <hanna.hawa@gmail.com>
+.SH LICENSE
+Apache License 2.0.

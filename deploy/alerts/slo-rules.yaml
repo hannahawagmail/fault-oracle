@@ -1,0 +1,153 @@
+# SPDX-License-Identifier: Apache-2.0
+# deploy/alerts/slo-rules.yaml — SLO-based multi-window burn rate alerts.
+#
+# SLO objective: 99.5% collector availability over a 30-day rolling window.
+# Error budget:  0.5% = 216 minutes/month per collector per node.
+#
+# Multi-window burn rate (Google SRE Workbook §5):
+#   - 2% budget in 1h  → page  (fast burn: total exhaustion in 2 days)
+#   - 5% budget in 6h  → page  (moderate burn: exhaustion in 5 days)
+#   - 10% budget in 3d → ticket (slow burn)
+#   - 10% budget in 3d + 1h short window → ticket
+#
+# Requires the following recording rules (defined in recording-rules.yaml):
+#   fault_resilience_collector_up — emitted by each collector
+
+groups:
+
+  - name: slo.collector.availability
+    interval: 30s
+    rules:
+
+      # ── Recording rules: availability ratio per window ──────────────────
+
+      - record: slo:collector_up:ratio_rate1h
+        expr: |
+          avg_over_time(fault_resilience_collector_up[1h])
+
+      - record: slo:collector_up:ratio_rate6h
+        expr: |
+          avg_over_time(fault_resilience_collector_up[6h])
+
+      - record: slo:collector_up:ratio_rate1d
+        expr: |
+          avg_over_time(fault_resilience_collector_up[1d])
+
+      - record: slo:collector_up:ratio_rate3d
+        expr: |
+          avg_over_time(fault_resilience_collector_up[3d])
+
+      - record: slo:collector_up:ratio_rate30d
+        expr: |
+          avg_over_time(fault_resilience_collector_up[30d])
+
+      # ── Burn rate recording rules ────────────────────────────────────────
+      # burn_rate = (1 - availability_ratio) / (1 - SLO_target)
+      # SLO target = 0.995
+
+      - record: slo:collector_up:burn_rate1h
+        expr: |
+          (1 - slo:collector_up:ratio_rate1h) / (1 - 0.995)
+
+      - record: slo:collector_up:burn_rate6h
+        expr: |
+          (1 - slo:collector_up:ratio_rate6h) / (1 - 0.995)
+
+      - record: slo:collector_up:burn_rate3d
+        expr: |
+          (1 - slo:collector_up:ratio_rate3d) / (1 - 0.995)
+
+      # ── Error budget remaining (%) ───────────────────────────────────────
+
+      - record: slo:collector_up:error_budget_remaining
+        expr: |
+          1 - (
+            (1 - slo:collector_up:ratio_rate30d) / (1 - 0.995)
+          )
+
+  - name: slo.collector.alerts
+    rules:
+
+      # Page: fast burn — 2% budget consumed in 1h (burn rate > 14.4x)
+      # Sustained for 2m to suppress flaps.
+      - alert: CollectorSLOFastBurn
+        expr: |
+          slo:collector_up:burn_rate1h > 14.4
+          and
+          slo:collector_up:burn_rate6h > 14.4
+        for: 2m
+        labels:
+          severity: critical
+          slo: collector_availability
+          window: "1h"
+        annotations:
+          summary: "Collector {{ $labels.collector }} on {{ $labels.node }} burning error budget at {{ $value | humanize }}x rate"
+          description: |
+            Collector {{ $labels.collector }} has been unavailable at a rate that would
+            exhaust the entire monthly error budget in under 2 days.
+            Current burn rate: {{ $value | humanize }}x (threshold: 14.4x).
+          runbook_url: "https://github.com/hanna-hawa/fault-oracle/blob/main/docs/runbook.md#CollectorSLOFastBurn"
+
+      # Page: moderate burn — 5% budget in 6h (burn rate > 6x)
+      - alert: CollectorSLOModerateBurn
+        expr: |
+          slo:collector_up:burn_rate6h > 6
+          and
+          slo:collector_up:burn_rate1d > 6
+        for: 15m
+        labels:
+          severity: warning
+          slo: collector_availability
+          window: "6h"
+        annotations:
+          summary: "Collector {{ $labels.collector }} on {{ $labels.node }} moderate budget burn ({{ $value | humanize }}x)"
+          description: |
+            Collector {{ $labels.collector }} burn rate {{ $value | humanize }}x would
+            exhaust the error budget in approximately 5 days.
+          runbook_url: "https://github.com/hanna-hawa/fault-oracle/blob/main/docs/runbook.md#CollectorSLOModerateBurn"
+
+      # Ticket: slow burn — 10% budget in 3d (burn rate > 1x, sustained)
+      - alert: CollectorSLOSlowBurn
+        expr: |
+          slo:collector_up:burn_rate3d > 1
+        for: 60m
+        labels:
+          severity: info
+          slo: collector_availability
+          window: "3d"
+        annotations:
+          summary: "Collector {{ $labels.collector }} on {{ $labels.node }} slow budget burn"
+          description: |
+            Collector {{ $labels.collector }} has been degraded for an extended period.
+            At current rate, the 30-day error budget will not be met.
+          runbook_url: "https://github.com/hanna-hawa/fault-oracle/blob/main/docs/runbook.md#CollectorSLOSlowBurn"
+
+      # Info: error budget < 10% remaining
+      - alert: CollectorErrorBudgetLow
+        expr: |
+          slo:collector_up:error_budget_remaining < 0.10
+        for: 5m
+        labels:
+          severity: warning
+          slo: collector_availability
+        annotations:
+          summary: "Collector {{ $labels.collector }} on {{ $labels.node }} has < 10% error budget remaining"
+          description: |
+            Only {{ $value | humanizePercentage }} of the monthly error budget remains
+            for collector {{ $labels.collector }}.
+          runbook_url: "https://github.com/hanna-hawa/fault-oracle/blob/main/docs/runbook.md#CollectorErrorBudgetLow"
+
+      # Critical: error budget fully exhausted
+      - alert: CollectorErrorBudgetExhausted
+        expr: |
+          slo:collector_up:error_budget_remaining <= 0
+        for: 5m
+        labels:
+          severity: critical
+          slo: collector_availability
+        annotations:
+          summary: "Collector {{ $labels.collector }} on {{ $labels.node }} error budget exhausted"
+          description: |
+            The 30-day error budget for collector {{ $labels.collector }} is fully exhausted.
+            SLO breach confirmed.
+          runbook_url: "https://github.com/hanna-hawa/fault-oracle/blob/main/docs/runbook.md#CollectorErrorBudgetExhausted"

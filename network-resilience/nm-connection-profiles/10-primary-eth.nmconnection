@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: Apache-2.0
+# 10-primary-eth.nmconnection — Primary wired Ethernet connection
+# Priority 100 (highest): tried first on every boot
+#
+# Deploy: cp 10-primary-eth.nmconnection /etc/NetworkManager/system-connections/
+#         chmod 600 /etc/NetworkManager/system-connections/10-primary-eth.nmconnection
+#         nmcli connection reload
+#
+# autoconnect-priority: Higher value = tried first. NM picks the highest-priority
+# profile that can activate. If this connection fails after autoconnect-retries
+# attempts, NM moves to the next highest-priority autoconnect profile.
+#
+# route-metric: Kernel routing table metric for routes installed by NM for this
+# connection. Lower metric = more preferred route. eth0 gets 100, WiFi gets 200,
+# LTE gets 300. When multiple connections are active simultaneously, the kernel
+# uses the connection whose routes have the lowest metric as the default path.
+
+[connection]
+id=primary-ethernet
+uuid=a1b2c3d4-e5f6-7890-abcd-ef1234567890
+type=ethernet
+interface-name=eth0
+autoconnect=true
+# Priority 100: highest — always tried first
+autoconnect-priority=100
+# Retry 3 times before giving up and falling to next profile
+autoconnect-retries=3
+timestamp=0
+
+[ethernet]
+# Empty blacklist: accept any MAC on this port
+mac-address-blacklist=
+wake-on-lan=default
+
+[ipv4]
+method=auto
+# Explicit DNS overrides DHCP-supplied resolvers for determinism
+dns=8.8.8.8;8.8.4.4;
+dns-search=
+# route-metric=100 → lowest metric → kernel prefers this interface for all
+# outbound traffic when it is up. Maps directly to the metric field in
+# /proc/net/route and to 'ip route add default via <gw> dev eth0 metric 100'
+route-metric=100
+ignore-auto-dns=false
+
+[ipv6]
+method=auto
+addr-gen-mode=default
+
+[proxy]

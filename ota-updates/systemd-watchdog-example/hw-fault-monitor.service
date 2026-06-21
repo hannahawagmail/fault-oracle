@@ -1,0 +1,122 @@
+# SPDX-License-Identifier: Apache-2.0
+# hw-fault-monitor.service — systemd unit for the hardware fault monitor daemon
+#
+# Install to: /etc/systemd/system/hw-fault-monitor.service
+# Enable with: systemctl enable --now hw-fault-monitor
+# Check status: systemctl status hw-fault-monitor
+# View logs:    journalctl -u hw-fault-monitor -f
+
+[Unit]
+# Human-readable name shown in systemctl status output and logs.
+Description=Hardware Fault Monitor with Watchdog
+
+# After= declares ordering: this unit starts *after* network.target is reached.
+# This does not create a dependency (use Requires= or Wants= for that).
+# We wait for network.target in case we want to send fault alerts over the
+# network in a future version.
+After=network.target
+
+# Wants= is a weak dependency: if hw-fault-exporter is available, start it
+# alongside this unit. If it is not installed, this unit still starts normally.
+# Use Requires= instead if this unit absolutely needs hw-fault-exporter.
+Wants=hw-fault-exporter.service
+
+# ConditionPathExists= prevents the unit from starting if the EDAC sysfs
+# directory does not exist, which would happen on non-ECC boards where the
+# monitor provides no useful data. Remove this if you want the monitor to
+# run even without EDAC hardware.
+# ConditionPathExists=/sys/devices/system/edac/mc0
+
+[Service]
+# Type=notify: systemd waits for the process to send READY=1 via NOTIFY_SOCKET
+# before considering the service "active". This is the correct type for daemons
+# that do significant initialization before they are ready to serve requests.
+#
+# Without Type=notify (e.g., Type=simple), systemd considers the service
+# active as soon as the process starts — even if it is still initializing.
+# Dependent units (After=hw-fault-monitor.service) would start too early.
+#
+# Type=notify requires the process to call sd_notify(0, "READY=1") after
+# initialization. See hw-fault-monitor.c for the implementation.
+Type=notify
+
+# Full path to the binary. Using an absolute path prevents PATH hijacking.
+ExecStart=/usr/local/bin/hw-fault-monitor
+
+# ExecReload= allows `systemctl reload` to send SIGHUP instead of restarting.
+# Uncomment if the daemon handles SIGHUP for config reload:
+# ExecReload=/bin/kill -HUP $MAINPID
+
+# WatchdogSec=: the heart of the watchdog integration.
+#
+# systemd will kill (SIGABRT) and restart this service if it does not receive
+# a WATCHDOG=1 notification within this time window. The process reads the
+# corresponding WATCHDOG_USEC environment variable and must ping at least
+# once per WatchdogSec period (best practice: ping every WatchdogSec/2).
+#
+# This catches hangs that Restart=on-failure does NOT catch:
+#   - Restart=on-failure only triggers when the process exits with non-zero.
+#   - A frozen/deadlocked process never exits — Restart= never fires.
+#   - WatchdogSec catches frozen processes by expecting active proof-of-life.
+#
+# Set this to at least 2x your POLL_INTERVAL_SEC (10s) plus margin.
+# 30s gives the daemon enough time for a slow sysfs read while still catching
+# a hard hang within half a minute.
+WatchdogSec=30s
+
+# Restart=on-failure: restart the service if it exits with a non-zero status
+# OR if it is killed by systemd's watchdog. Pairs with WatchdogSec to handle
+# both clean crashes and frozen-process scenarios.
+#
+# Restart=always would also restart on clean exit (exit 0), which is usually
+# wrong for a monitor daemon (intentional shutdown should stay down).
+Restart=on-failure
+
+# RestartSec=: wait this long before restarting after a failure. Prevents
+# a crash-loop from hammering the system with rapid restarts.
+RestartSec=5s
+
+# StartLimitIntervalSec + StartLimitBurst: if the service fails and restarts
+# more than 5 times in 60 seconds, systemd stops trying and marks it "failed".
+# This prevents an infinite crash-loop from consuming all resources.
+StartLimitIntervalSec=60s
+StartLimitBurst=5
+
+# OOMScoreAdjust=-900: tells the Linux OOM killer to strongly prefer killing
+# other processes over this one. Range: -1000 (never kill) to +1000 (kill first).
+# -900 makes the monitor nearly immune to OOM kills while still allowing the
+# kernel to kill it as a last resort (unlike -1000 which is absolute).
+#
+# If this daemon is OOM-killed, the watchdog stops pinging and systemd restarts
+# it — but during the gap, hardware faults go undetected. High OOM priority is
+# appropriate for a fault monitor.
+OOMScoreAdjust=-900
+
+# LimitNOFILE=: raise the file descriptor limit. The default (1024 on many
+# systems) is sufficient for this daemon, but if you extend it to open many
+# sysfs files or network sockets, raise this limit proactively.
+LimitNOFILE=65536
+
+# StandardOutput and StandardError go to journald by default (no explicit
+# setting needed). View with: journalctl -u hw-fault-monitor
+
+# User=: run as a dedicated low-privilege user for security isolation.
+# Uncomment and create the user:  useradd -r -s /sbin/nologin hw-monitor
+# Some sysfs paths may require group membership (e.g., 'disk' for edac reads).
+# User=hw-monitor
+# Group=hw-monitor
+
+# ProtectSystem=strict: mount /usr, /boot, /etc read-only inside the unit's
+# mount namespace. Prevents the daemon from accidentally modifying system files.
+# ProtectSystem=strict
+
+# ReadOnlyPaths= restricts write access even further; ReadWritePaths= opens
+# specific directories for writing (e.g., /var/lib/hw-fault-monitor).
+# ReadOnlyPaths=/sys /proc
+# ReadWritePaths=/var/lib/hw-fault-monitor
+
+[Install]
+# WantedBy=multi-user.target: start this service when the system reaches
+# multi-user mode (the standard "system is running" target on embedded Linux).
+# This is the correct target for background daemons that don't need a GUI.
+WantedBy=multi-user.target

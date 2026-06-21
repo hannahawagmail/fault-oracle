@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: Apache-2.0
+# chaos/scenarios/multi-node-ce-cascade.yaml
+name: multi-node-ce-cascade
+description: |
+  Inject CE storms on multiple nodes simultaneously.
+  Tests fleet-level alert aggregation and that per-node alerts fire independently.
+
+inject:
+  script: fault-injection/inject-ce.sh
+  args: "--mc 0 --count 50 --rate 15"
+
+expect:
+  alert: EDACCorrectableStorm
+  alert_timeout_s: 300
+  resolve_timeout_s: 900
+
+cleanup:
+  script: fault-injection/clear-ce.sh
+
+labels:
+  severity: warning
+  subsystem: edac
+  fleet: "true"

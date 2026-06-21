@@ -1,0 +1,107 @@
+# SPDX-License-Identifier: Apache-2.0
+# selinux/hw_fault_exporter.te — SELinux Type Enforcement policy for hw-fault-exporter.
+#
+# Confines the hw-fault-exporter process to a dedicated type so it can:
+#   - Read hardware error counters under /sys (sysfs_t)
+#   - Bind a TCP port (exporter_port_t, default 9101)
+#   - Write structured logs to /var/log/hw-fault-exporter/
+#   - Read TLS certs from /etc/hw-fault-exporter/tls/
+#
+# It is explicitly denied:
+#   - ptrace on any process
+#   - Writing to /proc (no kernel parameter modification)
+#   - Any mount/unmount operation
+#   - Network connects (only bind is allowed)
+
+policy_module(hw_fault_exporter, 1.0.0)
+
+# -----------------------------------------------------------------------
+# Type declarations
+# -----------------------------------------------------------------------
+
+type hw_fault_exporter_t;
+type hw_fault_exporter_exec_t;
+type hw_fault_exporter_log_t;
+type hw_fault_exporter_cert_t;
+type hw_fault_exporter_port_t;
+
+# Mark the binary as an entry point
+init_daemon_domain(hw_fault_exporter_t, hw_fault_exporter_exec_t)
+
+# Port type for Prometheus scrape port (9101)
+corenet_port(hw_fault_exporter_port_t)
+
+# -----------------------------------------------------------------------
+# File type transitions
+# -----------------------------------------------------------------------
+
+# Log directory
+logging_log_file(hw_fault_exporter_log_t)
+files_log_file(hw_fault_exporter_log_t)
+
+# TLS certificate directory
+files_config_file(hw_fault_exporter_cert_t)
+
+# -----------------------------------------------------------------------
+# Allow rules
+# -----------------------------------------------------------------------
+
+# --- sysfs (hardware counters) ---
+# Read all sysfs files: /sys/devices/system/edac/**, /sys/bus/pci/devices/**/aer_*
+allow hw_fault_exporter_t sysfs_t:dir  { open read search getattr };
+allow hw_fault_exporter_t sysfs_t:file { open read getattr };
+allow hw_fault_exporter_t sysfs_t:lnk_file { read getattr };
+
+# --- TCP network (Prometheus scrape server) ---
+allow hw_fault_exporter_t hw_fault_exporter_port_t:tcp_socket { name_bind };
+allow hw_fault_exporter_t self:tcp_socket {
+    create accept listen bind connect read write shutdown setopt getopt
+};
+allow hw_fault_exporter_t self:socket { create ioctl };
+
+# --- TLS certificates ---
+allow hw_fault_exporter_t hw_fault_exporter_cert_t:dir  { open read search getattr };
+allow hw_fault_exporter_t hw_fault_exporter_cert_t:file { open read getattr };
+
+# --- Log files ---
+allow hw_fault_exporter_t hw_fault_exporter_log_t:dir  { open write add_name search getattr };
+allow hw_fault_exporter_t hw_fault_exporter_log_t:file { create open write append getattr setattr };
+
+# --- Process self ---
+allow hw_fault_exporter_t self:process { signal sigchld getsched };
+
+# --- /tmp for ephemeral files (metric rendering) ---
+allow hw_fault_exporter_t tmp_t:dir  { open write add_name search getattr };
+allow hw_fault_exporter_t tmp_t:file { create open read write unlink getattr };
+
+# --- /proc/self (Go runtime needs this) ---
+allow hw_fault_exporter_t proc_t:dir     { open read search getattr };
+allow hw_fault_exporter_t proc_t:file    { open read getattr };
+allow hw_fault_exporter_t self:dir       { open read search getattr };
+
+# --- Kernel info (for Go runtime) ---
+allow hw_fault_exporter_t kernel_t:system { getsched };
+
+# -----------------------------------------------------------------------
+# Deny rules (explicit, belt-and-suspenders)
+# These are normally denied by default but listed here for documentation.
+# -----------------------------------------------------------------------
+
+# neverallow hw_fault_exporter_t domain:process { ptrace };
+# neverallow hw_fault_exporter_t { proc_t }:file { write };
+# neverallow hw_fault_exporter_t fs_type:filesystem { mount umount };
+
+# -----------------------------------------------------------------------
+# Required interfaces
+# -----------------------------------------------------------------------
+
+# Standard init, logging, and networking boilerplate
+kernel_read_system_state(hw_fault_exporter_t)
+kernel_read_kernel_sysctls(hw_fault_exporter_t)
+corenet_tcp_bind_generic_node(hw_fault_exporter_t)
+corenet_tcp_bind_port(hw_fault_exporter_t, hw_fault_exporter_port_t)
+corecmd_exec_bin(hw_fault_exporter_t)
+files_read_etc_files(hw_fault_exporter_t)
+libs_use_ld_so(hw_fault_exporter_t)
+libs_use_shared_libs(hw_fault_exporter_t)
+miscfiles_read_localization(hw_fault_exporter_t)

@@ -1,0 +1,215 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# deploy/alerts/fault-resilience-rules.yaml
+#
+# Prometheus alerting rules for ARM Linux hardware fault resilience.
+# Load with: --rule-files=deploy/alerts/*.yaml
+# Or add to prometheus.yml:
+#   rule_files:
+#     - 'deploy/alerts/fault-resilience-rules.yaml'
+
+groups:
+  - name: edac.correctable
+    interval: 60s
+    rules:
+
+      # -----------------------------------------------------------------------
+      # CE storm: more than 10 correctable errors per minute on any controller.
+      # A CE storm often precedes DIMM failure. Investigate within the hour.
+      # -----------------------------------------------------------------------
+      - alert: EDACCorrectableStorm
+        expr: |
+          rate(edac_correctable_errors_total[5m]) * 60 > 10
+        for: 2m
+        labels:
+          severity: warning
+          subsystem: edac
+        annotations:
+          summary: "CE storm on {{ $labels.controller }} csrow{{ $labels.csrow }} ch{{ $labels.channel }}"
+          description: >
+            Correctable ECC error rate is {{ $value | printf "%.1f" }}/min
+            on controller {{ $labels.controller }}, csrow {{ $labels.csrow }},
+            channel {{ $labels.channel }} (instance {{ $labels.instance }}).
+            A sustained CE storm may indicate a failing DIMM.
+            See runbook: docs/runbook.md#edac-correctable-storm
+          runbook_url: "https://github.com/hanna-hawa/fault-oracle/blob/main/docs/runbook.md#edac-correctable-storm"
+
+      # -----------------------------------------------------------------------
+      # Any uncorrectable error is immediately actionable — data may be corrupt.
+      # -----------------------------------------------------------------------
+      - alert: EDACUncorrectableError
+        expr: |
+          increase(edac_uncorrectable_errors_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          subsystem: edac
+        annotations:
+          summary: "UE detected on {{ $labels.controller }} csrow{{ $labels.csrow }}"
+          description: >
+            An uncorrectable ECC error (UE) was detected on controller
+            {{ $labels.controller }}, csrow {{ $labels.csrow }}
+            (instance {{ $labels.instance }}).
+            The system may have experienced data corruption.
+            Escalate immediately and consider scheduling a reboot/scrub.
+            See runbook: docs/runbook.md#edac-uncorrectable-error
+          runbook_url: "https://github.com/hanna-hawa/fault-oracle/blob/main/docs/runbook.md#edac-uncorrectable-error"
+
+  - name: edac.collector
+    interval: 60s
+    rules:
+
+      # -----------------------------------------------------------------------
+      # Collector sysfs path inaccessible — exporter cannot read EDAC data.
+      # -----------------------------------------------------------------------
+      - alert: EDACCollectorDown
+        expr: |
+          fault_resilience_collector_up{collector="edac"} == 0
+        for: 5m
+        labels:
+          severity: warning
+          subsystem: edac
+        annotations:
+          summary: "EDAC collector unavailable on {{ $labels.instance }}"
+          description: >
+            The EDAC sysfs path is not accessible on {{ $labels.instance }}.
+            The EDAC kernel module may not be loaded, or the kernel was built
+            without CONFIG_EDAC support.
+            See runbook: docs/runbook.md#collector-down
+
+      - alert: AERCollectorDown
+        expr: |
+          fault_resilience_collector_up{collector="aer"} == 0
+        for: 5m
+        labels:
+          severity: info
+          subsystem: aer
+        annotations:
+          summary: "PCIe AER collector unavailable on {{ $labels.instance }}"
+          description: >
+            The PCIe AER sysfs paths are not accessible on {{ $labels.instance }}.
+            This is expected on systems without PCIe devices or without
+            CONFIG_PCIEAER. No action required on embedded SoCs.
+            See runbook: docs/runbook.md#collector-down
+
+      - alert: MCECollectorDown
+        expr: |
+          fault_resilience_collector_up{collector="mce"} == 0
+        for: 5m
+        labels:
+          severity: info
+          subsystem: mce
+        annotations:
+          summary: "MCE collector unavailable on {{ $labels.instance }}"
+          description: >
+            The MCE/APEI GHES sysfs paths are not accessible on {{ $labels.instance }}.
+            This is expected on platforms without ACPI APEI support (e.g. RPi).
+            See runbook: docs/runbook.md#collector-down
+
+  - name: exporter.health
+    interval: 30s
+    rules:
+
+      # -----------------------------------------------------------------------
+      # Exporter itself is not reachable by Prometheus.
+      # -----------------------------------------------------------------------
+      - alert: FaultResilienceExporterDown
+        expr: |
+          up{job="hw-fault-exporter"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          subsystem: exporter
+        annotations:
+          summary: "hw-fault-exporter down on {{ $labels.instance }}"
+          description: >
+            Prometheus cannot scrape hw-fault-exporter on {{ $labels.instance }}.
+            Hardware fault counters are not being collected.
+            Check that the exporter process is running and port 9101 is reachable.
+            See runbook: docs/runbook.md#exporter-down
+
+      # -----------------------------------------------------------------------
+      # Scrape is succeeding but taking too long — sysfs may be stuck.
+      # -----------------------------------------------------------------------
+      - alert: FaultResilienceExporterSlowScrape
+        expr: |
+          hw_fault_exporter_scrape_duration_seconds > 5
+        for: 3m
+        labels:
+          severity: warning
+          subsystem: exporter
+        annotations:
+          summary: "Slow scrape on {{ $labels.instance }} collector={{ $labels.collector }}"
+          description: >
+            The {{ $labels.collector }} collector on {{ $labels.instance }} is taking
+            {{ $value | printf "%.1f" }}s per scrape (threshold: 5s).
+            The sysfs filesystem may be hung or the system under heavy load.
+
+  - name: pcie.aer
+    interval: 60s
+    rules:
+
+      # -----------------------------------------------------------------------
+      # PCIe fatal error — link or device may be unusable.
+      # -----------------------------------------------------------------------
+      - alert: PCIeFatalError
+        expr: |
+          increase(pcie_aer_uncorrectable_total{severity="fatal"}[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          subsystem: aer
+        annotations:
+          summary: "PCIe fatal AER error on {{ $labels.device }}"
+          description: >
+            A PCIe fatal error ({{ $labels.error_type }}) was detected on
+            device {{ $labels.device }} (instance {{ $labels.instance }}).
+            The PCIe link or endpoint may be unusable.
+            See runbook: docs/runbook.md#pcie-fatal-error
+
+      - alert: PCIeNonFatalErrorRate
+        expr: |
+          rate(pcie_aer_uncorrectable_total{severity="nonfatal"}[10m]) * 60 > 1
+        for: 5m
+        labels:
+          severity: warning
+          subsystem: aer
+        annotations:
+          summary: "PCIe non-fatal AER errors on {{ $labels.device }}"
+          description: >
+            PCIe non-fatal errors ({{ $labels.error_type }}) at
+            {{ $value | printf "%.2f" }}/min on device {{ $labels.device }}
+            (instance {{ $labels.instance }}).
+            See runbook: docs/runbook.md#pcie-nonfatal-error-rate
+
+  - name: thermal.alerts
+    rules:
+      - alert: CPUThermalThrottle
+        expr: cpu_thermal_zone_celsius{job="hw-fault-exporter"} > 85
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU thermal zone {{ $labels.zone }} on {{ $labels.node }} at {{ $value }}°C"
+          description: "Zone {{ $labels.zone_type }} has been above 85°C for 2 minutes."
+          runbook_url: "https://github.com/hanna-hawa/fault-oracle/blob/main/docs/runbook.md#CPUThermalThrottle"
+      - alert: CPUThermalCritical
+        expr: cpu_thermal_zone_celsius{job="hw-fault-exporter"} > 95
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "CPU critical temperature on {{ $labels.node }}: {{ $value }}°C"
+
+  # Anomaly detection rules
+  - record: anomaly:edac_ce_zscore:current
+    expr: anomaly_zscore{collector="edac"}
+
+  - alert: EDACCEAnomalyDetected
+    expr: anomaly_detected{collector="edac"} == 1
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "EDAC CE rate anomaly on {{ $labels.instance }}"
+      description: "Z-score {{ $value | humanize }} exceeds ±3σ vs 7-day baseline."

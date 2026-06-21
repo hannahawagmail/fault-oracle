@@ -1,0 +1,56 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# deploy/helm/values.yaml — default values for hw-fault-exporter Helm chart.
+# Override with: helm install hw-fault-exporter ./deploy/helm -f my-values.yaml
+
+image:
+  repository: ghcr.io/hanna-hawa/fault-oracle/hw-fault-exporter
+  tag: ""          # defaults to Chart.appVersion
+  pullPolicy: IfNotPresent
+
+# Extra CLI args passed to hw-fault-exporter
+extraArgs: []
+  # - --no-mce      # disable MCE collector on platforms without APEI
+  # - --no-aer      # disable AER collector on SoCs without PCIe
+
+# Resource limits
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 100m
+    memory: 64Mi
+
+# Node selector — restrict to ARM64 nodes by default
+nodeSelector:
+  kubernetes.io/arch: arm64
+
+tolerations:
+  - operator: Exists   # run on all nodes, including control-plane
+
+# Port the exporter listens on
+service:
+  port: 9101
+
+# Prometheus Operator ServiceMonitor
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  scrapeTimeout: 10s
+  labels: {}
+
+# Namespace for all resources
+namespace: monitoring
+
+# --- Security profiles ---
+securityProfiles:
+  seccomp:
+    enabled: true
+    type: Localhost
+    # Path relative to /var/lib/kubelet/seccomp/ on each node.
+    # Copy security/seccomp-profile.json there before enabling.
+    localhostProfile: hw-fault-exporter/seccomp-profile.json
+  apparmor:
+    enabled: false  # enable on bare-metal hosts with AppArmor
+    profile: usr.local.bin.hw-fault-exporter

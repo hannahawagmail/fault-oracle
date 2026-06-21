@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: Apache-2.0
+groups:
+  - name: gpu-hardware
+    rules:
+      - alert: GPUFatalXIDError
+        expr: increase(gpu_xid_error_total{severity="fatal"}[5m]) > 0
+        for: 0m
+        labels: {severity: critical}
+        annotations:
+          summary: "Fatal XID {{ $labels.xid }} on GPU {{ $labels.gpu_index }}"
+          runbook: "https://docs.nvidia.com/deploy/xid-errors/index.html"
+      - alert: GPUDoubleBitECC
+        expr: increase(gpu_ecc_dbe_total[5m]) > 0
+        for: 0m
+        labels: {severity: critical}
+        annotations:
+          summary: "GPU {{ $labels.gpu_index }} double-bit ECC — row retirement likely"
+      - alert: GPUThermalThrottle
+        expr: gpu_throttle_active{reason="thermal_slowdown"} == 1
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "GPU {{ $labels.gpu_index }} thermal throttling >5m"
+      - alert: GPUPredictedFailure
+        expr: gpu_failure_probability_7d > 0.8
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "GPU {{ $labels.gpu_index }} failure probability {{ $value | humanizePercentage }}"
+      - alert: AMDGPURASUncorrectable
+        expr: increase(amd_gpu_ras_error_total{error_type="uncorrectable"}[5m]) > 0
+        for: 0m
+        labels: {severity: critical}
+        annotations:
+          summary: "AMD {{ $labels.card }} uncorrectable RAS error in {{ $labels.block }}"

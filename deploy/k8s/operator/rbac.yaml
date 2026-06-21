@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: Apache-2.0
+# RBAC for hw-fault-exporter self-healing operator.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hw-fault-exporter-operator
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: hw-fault-exporter-operator
+  namespace: monitoring
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["daemonsets"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hw-fault-exporter-operator
+  namespace: monitoring
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: hw-fault-exporter-operator
+subjects:
+  - kind: ServiceAccount
+    name: hw-fault-exporter-operator
+    namespace: monitoring

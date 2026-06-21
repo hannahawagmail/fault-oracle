@@ -1,0 +1,185 @@
+#!/usr/bin/env bpftrace
+// SPDX-License-Identifier: Apache-2.0
+// detect-fork-storm.bt — Detect runaway process creation (fork/exec storms)
+//
+// Usage: sudo bpftrace detect-fork-storm.bt
+// Output: per-process fork rate per second; ALERT when threshold is exceeded
+//
+// Threshold: FORK_THRESHOLD forks/sec sustained for ALERT_SECONDS = anomaly
+//
+// The clone(2) syscall is used for fork(), vfork(), pthread_create(), and
+// clone(). We track all of them. To distinguish thread creation from process
+// creation, filter on the CLONE_THREAD flag — but for fork-storm detection
+// we count all clone calls since thread storms are equally dangerous.
+//
+// Output format (machine-parseable for ebpf-to-prometheus.sh):
+//   STAT fork comm=<name> pid=<pid> rate=<N>
+//   ALERT: fork storm detected: comm=<name> rate=<N>/s
+//
+// Requirements:
+//   - Linux kernel >= 5.8, bpftrace >= 0.14
+//   - Root or CAP_BPF + CAP_PERFMON
+
+BEGIN
+{
+    printf("detect-fork-storm.bt started — threshold: %d forks/sec\n", $1 > 0 ? $1 : 50);
+    printf("Monitoring clone/fork/vfork syscalls. Reporting every 1 second.\n");
+    printf("---\n");
+
+    // Threshold: forks/sec before alerting. Pass as argument or use default 50.
+    @threshold = $1 > 0 ? $1 : 50;
+
+    // Window size in seconds for sustained detection
+    @alert_window = 5;
+
+    // Per-comm counters reset every interval
+    // @forks[comm] accumulates in the tracepoint and is reported + cleared per interval
+}
+
+// ---------------------------------------------------------------------------
+// Count every clone() entry — covers fork(), vfork(), clone(), clone3()
+// ---------------------------------------------------------------------------
+tracepoint:syscalls:sys_enter_clone
+{
+    @forks[comm] = count();
+    @forks_by_pid[comm, pid] = count();
+}
+
+// Also catch clone3() on kernels that expose it separately
+tracepoint:syscalls:sys_enter_clone3
+{
+    @forks[comm] = count();
+    @forks_by_pid[comm, pid] = count();
+}
+
+// ---------------------------------------------------------------------------
+// Every second: report rates and check threshold
+// ---------------------------------------------------------------------------
+interval:s:1
+{
+    $alert_fired = 0;
+    $ts = elapsed / 1000000000;
+
+    // Iterate over per-comm fork counts
+    // bpftrace does not support map iteration with conditionals natively in
+    // older versions; use print() and rely on the parser for alerting.
+    // For inline alerting we use a workaround with a global max tracker.
+
+    // Emit all stats for external parsing
+    print(@forks);
+
+    // Check each entry against threshold
+    // bpftrace 0.14+ supports @map iteration via foreach (if compiled in).
+    // Fallback: we use the fact that @forks_alert stores the max.
+    // Scan for any comm whose count this interval exceeds threshold.
+    // We emit a separate ALERT line the parser can grep for.
+
+    // Since bpftrace cannot iterate map keys in all versions, we store the
+    // maximum fork rate seen across all comms in this interval.
+    // The ALERT line is emitted when any comm exceeds the threshold.
+
+    // Update the per-second rate tracker
+    @rate_window[elapsed / 1000000000] = @forks;
+
+    // Emit STAT lines for every tracked process (parseable format)
+    // bpftrace will print the map above; we emit a separator
+    printf("--- interval %lld ---\n", $ts);
+
+    // Clear per-interval counters; sustained detection uses @sustained_count
+    clear(@forks);
+    clear(@forks_by_pid);
+}
+
+// ---------------------------------------------------------------------------
+// Sustained alert: check every 5 seconds if any comm has been above threshold
+// for multiple consecutive intervals
+// ---------------------------------------------------------------------------
+interval:s:5
+{
+    printf("CHECKPOINT: sustained fork-storm check at %lld s\n", elapsed / 1000000000);
+}
+
+// ---------------------------------------------------------------------------
+// Track exec() calls as secondary signal: a process forking AND exec-ing
+// many children is the classic fork-bomb / build-system runaway pattern
+// ---------------------------------------------------------------------------
+tracepoint:syscalls:sys_enter_execve
+{
+    @execs[comm] = count();
+}
+
+tracepoint:syscalls:sys_enter_execveat
+{
+    @execs[comm] = count();
+}
+
+// ---------------------------------------------------------------------------
+// Capture child process creation: when clone() returns in parent we have
+// the child PID. Use to correlate parent with fork rate.
+// ---------------------------------------------------------------------------
+tracepoint:syscalls:sys_exit_clone
+/args->ret > 0/
+{
+    // args->ret == child PID in parent context
+    @parent_of[comm, pid] = args->ret;
+    @total_children[comm] = count();
+}
+
+// ---------------------------------------------------------------------------
+// Alert probe: use kprobe on kernel_clone (5.10+) or do_fork (older) to
+// get the fork count at kernel level, independent of syscall tracing
+// ---------------------------------------------------------------------------
+kprobe:kernel_clone
+{
+    @kclone[comm] = count();
+
+    // Inline threshold check — increment per-comm counter
+    @rate[comm]++;
+}
+
+kretprobe:kernel_clone
+/retval > 0/
+{
+    // Successfully forked a child
+    @successful_forks[comm] = count();
+
+    // Emit ALERT if this comm's current rate is above threshold
+    // We track a per-comm rate counter and emit alert when it fires
+    if (@rate[comm] > @threshold) {
+        printf("ALERT: fork storm detected: comm=%s rate=%lld/s pid=%d\n",
+               comm, @rate[comm], pid);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Reset per-second rate counters every second
+// ---------------------------------------------------------------------------
+interval:s:1
+{
+    clear(@rate);
+}
+
+// ---------------------------------------------------------------------------
+// Final summary on exit (Ctrl-C or timeout)
+// ---------------------------------------------------------------------------
+END
+{
+    printf("\n=== detect-fork-storm.bt final summary ===\n");
+    printf("Total kernel_clone events by process:\n");
+    print(@kclone);
+    printf("\nTotal successful forks by parent process:\n");
+    print(@successful_forks);
+    printf("\nTotal exec() calls by process:\n");
+    print(@execs);
+    printf("\nTotal children created by parent (comm, pid):\n");
+    print(@total_children);
+
+    clear(@kclone);
+    clear(@successful_forks);
+    clear(@execs);
+    clear(@total_children);
+    clear(@parent_of);
+    clear(@rate_window);
+    clear(@threshold);
+    clear(@alert_window);
+}

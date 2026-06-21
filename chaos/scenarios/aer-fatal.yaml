@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0
+# chaos/scenarios/aer-fatal.yaml
+name: aer-fatal
+description: |
+  Inject a PCIe AER fatal error on a PCI device.
+  Expects PCIeFatalError alert to fire within 2 minutes.
+
+inject:
+  script: fault-injection/inject-aer.sh
+  args: "--bdf 0000:01:00.0 --type fatal"
+
+expect:
+  alert: PCIeFatalError
+  alert_timeout_s: 180
+  resolve_timeout_s: 600
+
+cleanup:
+  script: fault-injection/clear-aer.sh
+
+labels:
+  severity: critical
+  subsystem: aer

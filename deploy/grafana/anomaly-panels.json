@@ -1,0 +1,40 @@
+[
+  {
+    "title": "EDAC CE Rate with ±3σ Anomaly Band",
+    "type": "timeseries",
+    "datasource": "Prometheus",
+    "gridPos": {"h": 9, "w": 24, "x": 0, "y": 0},
+    "fieldConfig": {
+      "defaults": {"unit": "cps"},
+      "overrides": [
+        {"matcher": {"id": "byName", "options": "CE rate"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "blue"}}]},
+        {"matcher": {"id": "byName", "options": "+3σ"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}, {"id": "custom.lineStyle", "value": {"dash": [8, 8], "fill": "dash"}}]},
+        {"matcher": {"id": "byName", "options": "-3σ"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}, {"id": "custom.lineStyle", "value": {"dash": [8, 8], "fill": "dash"}}]},
+        {"matcher": {"id": "byName", "options": "Baseline mean"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "green"}}, {"id": "custom.lineStyle", "value": {"dash": [4, 4], "fill": "dash"}}]}
+      ]
+    },
+    "targets": [
+      {"expr": "rate(edac_correctable_errors_total[5m])", "legendFormat": "CE rate", "refId": "A"},
+      {"expr": "anomaly_baseline_mean{collector=\"edac\"}", "legendFormat": "Baseline mean", "refId": "B"},
+      {"expr": "anomaly_baseline_mean{collector=\"edac\"} + 3 * anomaly_baseline_stddev{collector=\"edac\"}", "legendFormat": "+3σ", "refId": "C"},
+      {"expr": "anomaly_baseline_mean{collector=\"edac\"} - 3 * anomaly_baseline_stddev{collector=\"edac\"}", "legendFormat": "-3σ", "refId": "D"}
+    ]
+  },
+  {
+    "title": "Anomaly Z-Score by Node",
+    "type": "timeseries",
+    "datasource": "Prometheus",
+    "gridPos": {"h": 6, "w": 12, "x": 0, "y": 9},
+    "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"steps": [{"value": -3, "color": "red"}, {"value": 3, "color": "red"}]}}},
+    "targets": [{"expr": "anomaly_zscore", "legendFormat": "{{instance}}", "refId": "A"}]
+  },
+  {
+    "title": "Active Anomalies",
+    "type": "stat",
+    "datasource": "Prometheus",
+    "gridPos": {"h": 6, "w": 12, "x": 12, "y": 9},
+    "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"steps": [{"value": 0, "color": "green"}, {"value": 1, "color": "red"}]}}},
+    "targets": [{"expr": "count(anomaly_detected == 1) or vector(0)", "legendFormat": "Anomalous nodes", "refId": "A"}],
+    "options": {"colorMode": "background"}
+  }
+]

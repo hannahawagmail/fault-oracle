@@ -10,7 +10,7 @@ groups:
         annotations:
           summary: "CXL uncorrectable error on {{ $labels.node }} device {{ $labels.device }}"
           description: "{{ $value }} CXL uncorrectable errors (type={{ $labels.error_type }}) in the last 5 minutes."
-          runbook_url: "https://github.com/hanna-hawa/arm-linux-fault-resilience/blob/main/docs/runbook.md#CXLUncorrectableError"
+          runbook_url: "https://github.com/hanna-hawa/fault-oracle/blob/main/docs/runbook.md#CXLUncorrectableError"
 
       - alert: CXLCorrectableStorm
         expr: rate(cxl_correctable_errors_total[5m]) * 60 > 10
@@ -20,7 +20,7 @@ groups:
         annotations:
           summary: "CXL correctable error storm on {{ $labels.node }}"
           description: "CXL correctable errors exceeding 10/min on device {{ $labels.device }}."
-          runbook_url: "https://github.com/hanna-hawa/arm-linux-fault-resilience/blob/main/docs/runbook.md#CXLCorrectableStorm"
+          runbook_url: "https://github.com/hanna-hawa/fault-oracle/blob/main/docs/runbook.md#CXLCorrectableStorm"
 
       - alert: CXLCollectorDown
         expr: fault_resilience_collector_up{collector="cxl"} == 0

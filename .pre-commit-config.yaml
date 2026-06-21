@@ -1,0 +1,152 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# .pre-commit-config.yaml — pre-commit hook suite for fault-oracle
+#
+# Install pre-commit and activate hooks:
+#   pip install pre-commit
+#   pre-commit install
+#
+# Run against all files (e.g. on first setup or after adding new hooks):
+#   pre-commit run --all-files
+#
+# Run a single hook:
+#   pre-commit run shellcheck --all-files
+#
+# Update all hooks to their latest pinned revision:
+#   pre-commit autoupdate
+#
+# CI: pre-commit is also run in the lint job via `pre-commit run --all-files`.
+
+minimum_pre_commit_version: "3.5.0"
+
+default_language_version:
+  python: python3.11
+
+default_stages: [pre-commit]
+
+repos:
+
+  # ---------------------------------------------------------------------------
+  # General file hygiene
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-yaml
+        args: [--unsafe]
+      - id: check-json
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+      - id: detect-private-key
+      - id: no-commit-to-branch
+        args: [--branch, main]
+
+  # ---------------------------------------------------------------------------
+  # Shell scripts — syntax check + static analysis
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        name: shellcheck
+        args: [-x, -S, error]
+        types: [shell]
+
+  - repo: https://github.com/scop/pre-commit-shfmt
+    rev: v3.9.0-1
+    hooks:
+      - id: shfmt
+        name: shfmt (shell formatter)
+        args: [-w, -i=4, -bn, -ci]
+        types: [shell]
+
+  # ---------------------------------------------------------------------------
+  # Python — formatting, import order, linting, type checking
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/psf/black
+    rev: 24.4.2
+    hooks:
+      - id: black
+        name: black (Python formatter)
+        args: [--line-length=100]
+        types: [python]
+
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        name: isort (Python import order)
+        args: [--profile=black, --line-length=100]
+        types: [python]
+
+  - repo: https://github.com/PyCQA/flake8
+    rev: 7.1.0
+    hooks:
+      - id: flake8
+        name: flake8 (Python linter)
+        args: [--max-line-length=100, --extend-ignore=E203,W503]
+        types: [python]
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.10.0
+    hooks:
+      - id: mypy
+        name: mypy (Python type checker)
+        args: [--ignore-missing-imports, --no-strict-optional]
+        types: [python]
+        files: ^replay/
+
+  # ---------------------------------------------------------------------------
+  # Go — formatting and static analysis
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/dnephin/pre-commit-golang
+    rev: v0.5.1
+    hooks:
+      - id: go-fmt
+        name: gofmt (Go formatter)
+        files: ^exporter/
+      - id: go-vet
+        name: go vet (Go static analysis)
+        files: ^exporter/
+      - id: go-unit-tests
+        name: go test (Go unit tests)
+        args: [-race, -count=1]
+        files: ^exporter/
+
+  # ---------------------------------------------------------------------------
+  # Markdown
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.41.0
+    hooks:
+      - id: markdownlint
+        name: markdownlint
+        args: [--config=.markdownlint.yaml, --fix]
+        types: [markdown]
+
+  # ---------------------------------------------------------------------------
+  # YAML
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.35.1
+    hooks:
+      - id: yamllint
+        name: yamllint
+        args: [-c=.yamllint.yaml]
+        types: [yaml]
+
+  # ---------------------------------------------------------------------------
+  # Secrets scanning
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks
+        name: gitleaks (secret scanning)

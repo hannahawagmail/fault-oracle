@@ -1,0 +1,80 @@
+# Synthetic EDAC trace — CE storm followed by UE on the same DIMM rank.
+#
+# This is a synthetic, anonymized example trace illustrating the pattern of a
+# correctable-error storm that precedes an uncorrectable error on the same csrow.
+# No real production incident, system, or host is represented.
+#
+# Pattern:
+#   - CEs begin on csrow 0, channel 0 at t=0
+#   - CE rate accelerates (~doubling every 10 seconds)
+#   - At t=47s, a UE occurs on the same csrow — the DIMM has failed
+#   - The kernel calls memory_failure() on the affected page
+#
+# To replay:
+#   python3 ../parse_edac_trace.py --input sample_ce_storm.log --output /tmp/ce_storm.json --pretty
+#   sudo bash ../replay_kernel_state.sh --events /tmp/ce_storm.json
+#
+# To replay without UE injection (safer):
+#   sudo bash ../replay_kernel_state.sh --events /tmp/ce_storm.json --skip-types UE
+
+[    0.000000] Linux version 6.7.0-arm64 (gcc version 12.2.0)
+[    0.012340] EDAC: Initialized at 1000ms poll interval
+[    0.015600] edac_cortex_ref: module loaded (version 1.0.0)
+[    0.015700] edac_cortex_ref v1.0.0 loaded: 2 csrows × 2 channels, 2048 MiB/csrow, poll=1000 ms
+[    0.016100] EDAC MC0: Giving out device to module 'edac_cortex_ref' controller 'cortex-a72-l2-ecc': DEV 'edac_cortex_ref.0'
+
+# --- CE Storm begins at t=10s ---
+
+[   10.001234] EDAC MC0: 1 CE on DIMM_0_CH0 (mc:0 page:0x00012ab offset:0x0 grain:8 syndrome:0x0000000000000001)
+[   10.001235] EDAC MC0: CE error on memory module DIMM_0_CH0 (csrow:0 channel:0)
+
+[   20.002341] EDAC MC0: 1 CE on DIMM_0_CH0 (mc:0 page:0x00012ab offset:0x8 grain:8 syndrome:0x0000000000000001)
+[   20.002342] EDAC MC0: CE error on memory module DIMM_0_CH0 (csrow:0 channel:0)
+
+[   23.456789] EDAC MC0: 1 CE on DIMM_0_CH0 (mc:0 page:0x00012ac offset:0x0 grain:8 syndrome:0x0000000000000002)
+[   23.456790] EDAC MC0: CE error on memory module DIMM_0_CH0 (csrow:0 channel:0)
+
+[   27.891011] EDAC MC0: 2 CE on DIMM_0_CH0 (mc:0 page:0x00012ab offset:0x10 grain:8 syndrome:0x0000000000000001)
+[   27.891012] EDAC MC0: CE error on memory module DIMM_0_CH0 (csrow:0 channel:0)
+
+[   30.001122] EDAC MC0: 3 CE on DIMM_0_CH0 (mc:0 page:0x00012ab offset:0x18 grain:8 syndrome:0x0000000000000003)
+[   30.001123] EDAC MC0: CE error on memory module DIMM_0_CH0 (csrow:0 channel:0)
+
+# --- CE rate accelerating ---
+
+[   33.112233] EDAC MC0: 1 CE on DIMM_0_CH0 (mc:0 page:0x00012ad offset:0x0 grain:8 syndrome:0x0000000000000001)
+[   35.223344] EDAC MC0: 2 CE on DIMM_0_CH0 (mc:0 page:0x00012ab offset:0x20 grain:8 syndrome:0x0000000000000001)
+[   36.334455] EDAC MC0: 1 CE on DIMM_0_CH0 (mc:0 page:0x00012ae offset:0x8 grain:8 syndrome:0x0000000000000002)
+[   37.445566] EDAC MC0: 3 CE on DIMM_0_CH0 (mc:0 page:0x00012ab offset:0x28 grain:8 syndrome:0x0000000000000003)
+[   38.556677] EDAC MC0: 2 CE on DIMM_0_CH0 (mc:0 page:0x00012ab offset:0x30 grain:8 syndrome:0x0000000000000001)
+[   39.667788] EDAC MC0: 4 CE on DIMM_0_CH0 (mc:0 page:0x00012af offset:0x0 grain:8 syndrome:0x0000000000000007)
+
+# --- Spreading to adjacent page ---
+
+[   40.112233] EDAC MC0: 5 CE on DIMM_0_CH0 (mc:0 page:0x00012b0 offset:0x0 grain:8 syndrome:0x000000000000000f)
+[   41.223344] EDAC MC0: 3 CE on DIMM_0_CH0 (mc:0 page:0x00012ab offset:0x38 grain:8 syndrome:0x0000000000000001)
+[   42.334455] EDAC MC0: 6 CE on DIMM_0_CH0 (mc:0 page:0x00012b1 offset:0x0 grain:8 syndrome:0x000000000000001f)
+[   43.445566] EDAC MC0: 4 CE on DIMM_0_CH0 (mc:0 page:0x00012ab offset:0x40 grain:8 syndrome:0x0000000000000001)
+[   44.556677] EDAC MC0: 8 CE on DIMM_0_CH0 (mc:0 page:0x00012b2 offset:0x0 grain:8 syndrome:0x000000000000003f)
+[   45.667788] EDAC MC0: 5 CE on DIMM_0_CH0 (mc:0 page:0x00012ab offset:0x48 grain:8 syndrome:0x0000000000000001)
+[   46.778899] EDAC MC0: 10 CE on DIMM_0_CH0 (mc:0 page:0x00012b3 offset:0x0 grain:8 syndrome:0x000000000000007f)
+
+# --- Uncorrectable error — DIMM has failed ---
+
+[   47.234567] EDAC MC0: 1 UE on DIMM_0_CH0 (mc:0 page:0x00012ab offset:0x50 grain:8 syndrome:0x0000000000000000)
+[   47.234568] EDAC MC0: UE error on memory module DIMM_0_CH0 (csrow:0 channel:0)
+[   47.234600] EDAC MC0: 1 UE no info
+[   47.234700] Memory failure: 0x12ab: dirty LRU page recovery: Failed
+[   47.234800] Memory failure: 0x12ab: recovery action for dirty LRU page: Failed
+[   47.235000] Killing test_process:12345 due to hardware memory corruption
+
+# --- Kernel page-offline attempt ---
+
+[   47.240000] memory_failure: 0x12ab: Page isolated from LRU, not available
+[   47.241000] Memory failure: 0x12ab: Sending SIGBUS to test_process:12345
+
+# --- Subsequent CEs on other pages (DIMM partially functional) ---
+
+[   48.000000] EDAC MC0: 2 CE on DIMM_0_CH1 (mc:0 page:0x00013ab offset:0x0 grain:8 syndrome:0x0000000000000001)
+[   49.000000] EDAC MC0: 1 CE on DIMM_0_CH1 (mc:0 page:0x00013ac offset:0x0 grain:8 syndrome:0x0000000000000001)
+[   50.000000] EDAC MC0: 3 CE on DIMM_0_CH1 (mc:0 page:0x00013ad offset:0x0 grain:8 syndrome:0x0000000000000003)

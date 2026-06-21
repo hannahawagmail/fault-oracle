@@ -1,0 +1,71 @@
+# SPDX-License-Identifier: Apache-2.0
+# Kubernetes CronJob — runs redfish-collector.py once per minute.
+#
+# Prerequisites:
+#   1. Create the redfish-credentials Secret (see redfish-secret.yaml).
+#   2. Create a ConfigMap named redfish-config with key REDFISH_HOST:
+#        kubectl create configmap redfish-config \
+#          --from-literal=REDFISH_HOST=<BMC_IP_OR_HOSTNAME> \
+#          -n fault-resilience
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: redfish-collector
+  namespace: fault-resilience
+  labels:
+    app: redfish-collector
+    component: bmc-monitoring
+spec:
+  schedule: "* * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: redfish-collector
+            component: bmc-monitoring
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: redfish-collector
+              image: python:3.11-slim
+              command:
+                - python3
+                - /scripts/redfish-collector.py
+              env:
+                - name: REDFISH_HOST
+                  valueFrom:
+                    configMapKeyRef:
+                      name: redfish-config
+                      key: REDFISH_HOST
+                - name: REDFISH_USER
+                  value: "admin"
+                - name: REDFISH_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: redfish-credentials
+                      key: password
+                - name: REDFISH_INSECURE
+                  value: "false"
+              volumeMounts:
+                - name: collector-scripts
+                  mountPath: /scripts
+                  readOnly: true
+                - name: redfish-state
+                  mountPath: /var/lib/hw-fault-bmc
+              resources:
+                requests:
+                  cpu: "50m"
+                  memory: "64Mi"
+                limits:
+                  cpu: "200m"
+                  memory: "128Mi"
+          volumes:
+            - name: collector-scripts
+              configMap:
+                name: redfish-collector-scripts
+            - name: redfish-state
+              emptyDir: {}

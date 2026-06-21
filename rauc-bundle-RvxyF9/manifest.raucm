@@ -1,0 +1,9 @@
+[update]
+compatible=arm-linux-fault-resilience-board
+version=1.2.3
+
+[bundle]
+format=verity
+
+[image.rootfs.0]
+filename=rootfs.tar.gz

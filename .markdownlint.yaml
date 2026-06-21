@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: Apache-2.0
+# markdownlint configuration — see https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md
+default: true
+
+# Allow longer lines in code blocks and tables
+MD013:
+  line_length: 120
+  code_blocks: false
+  tables: false
+
+# Allow bare URLs (common in SPDX headers and reference sections)
+MD034: false
+
+# Allow duplicate headings across different sections
+MD024:
+  siblings_only: true
+
+# Allow HTML in markdown (used for SPDX comment headers)
+MD033:
+  allowed_elements: ["!--", "br", "details", "summary"]

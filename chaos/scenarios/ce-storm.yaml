@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0
+# chaos/scenarios/ce-storm.yaml
+name: ce-storm
+description: |
+  Inject a correctable error storm (>10 CE/min) on a single EDAC memory controller.
+  Expects EDACCorrectableStorm alert to fire within 3 minutes.
+
+inject:
+  script: fault-injection/inject-ce.sh
+  args: "--mc 0 --count 100 --rate 20"
+
+expect:
+  alert: EDACCorrectableStorm
+  alert_timeout_s: 300
+  resolve_timeout_s: 600
+
+cleanup:
+  script: fault-injection/clear-ce.sh
+
+labels:
+  severity: warning
+  subsystem: edac

@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: Apache-2.0
+# docker-compose.yml — Local dev stack: exporter + Prometheus + Grafana
+#
+# Usage: docker compose up -d
+# Exporter metrics: http://localhost:9100/metrics
+# Prometheus UI:    http://localhost:9090
+# Grafana:          http://localhost:3000 (admin/admin)
+
+version: "3.8"
+
+services:
+  hw-fault-exporter:
+    build:
+      context: ../exporter
+      dockerfile: Dockerfile
+    platform: linux/arm64
+    ports:
+      - "9100:9100"
+    volumes:
+      - /sys:/sys:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "sh", "-c", "curl -sf http://localhost:9100/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../dashboards/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
+      - ../dashboards/recording-rules.yml:/etc/prometheus/recording-rules.yml:ro
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=7d"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.2.0
+    ports:
+      - "3000:3000"
+    volumes:
+      - ../dashboards:/var/lib/grafana/dashboards:ro
+      - ./grafana-datasource.yml:/etc/grafana/provisioning/datasources/prometheus.yml:ro
+      - ./grafana-dashboard-provider.yml:/etc/grafana/provisioning/dashboards/provider.yml:ro
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/fleet-fault-resilience.json
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:v0.26.0
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    restart: unless-stopped

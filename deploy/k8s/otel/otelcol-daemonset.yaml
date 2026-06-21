@@ -1,0 +1,111 @@
+# SPDX-License-Identifier: Apache-2.0
+# OTel Collector DaemonSet — runs on every node to receive traces from
+# the hw-fault-exporter and forward to a central backend (Tempo/Jaeger).
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otelcol-config
+  namespace: monitoring
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: "0.0.0.0:4317"
+
+    processors:
+      batch:
+        timeout: 1s
+        send_batch_max_size: 512
+
+      resource:
+        attributes:
+          - action: insert
+            key: k8s.node.name
+            value: "${NODE_NAME}"
+
+    exporters:
+      otlp:
+        endpoint: "${TEMPO_ENDPOINT}"
+        tls:
+          insecure: false
+      logging:
+        loglevel: warn
+
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [resource, batch]
+          exporters: [otlp, logging]
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: otelcol
+  namespace: monitoring
+  labels:
+    app: otelcol
+spec:
+  selector:
+    matchLabels:
+      app: otelcol
+  template:
+    metadata:
+      labels:
+        app: otelcol
+    spec:
+      serviceAccountName: otelcol
+      containers:
+        - name: otelcol
+          image: otel/opentelemetry-collector-contrib:0.97.0
+          args: ["--config=/conf/config.yaml"]
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: TEMPO_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: otelcol-secrets
+                  key: tempo_endpoint
+          ports:
+            - name: otlp-grpc
+              containerPort: 4317
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /conf
+          resources:
+            requests: {cpu: "50m", memory: "64Mi"}
+            limits:   {cpu: "200m", memory: "256Mi"}
+          livenessProbe:
+            httpGet: {path: "/", port: 13133}
+            initialDelaySeconds: 5
+      volumes:
+        - name: config
+          configMap:
+            name: otelcol-config
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: otelcol
+  namespace: monitoring
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otelcol
+  namespace: monitoring
+spec:
+  selector:
+    app: otelcol
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+  clusterIP: None  # headless — each exporter hits localhost:4317 via hostNetwork

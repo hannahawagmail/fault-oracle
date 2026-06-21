@@ -1,0 +1,182 @@
+# SPDX-License-Identifier: Apache-2.0
+# k8s-daemonset.yaml — Deploy hw-fault-exporter as a DaemonSet on ARM64 nodes
+#
+# Usage: kubectl apply -f deploy/k8s-daemonset.yaml
+# Prometheus scrape: add annotation prometheus.io/scrape: "true" (already set)
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hw-fault-resilience
+  labels:
+    app.kubernetes.io/name: hw-fault-resilience
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hw-fault-exporter
+  namespace: hw-fault-resilience
+  labels:
+    app.kubernetes.io/name: hw-fault-exporter
+    app.kubernetes.io/component: exporter
+
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: hw-fault-exporter
+  namespace: hw-fault-resilience
+  labels:
+    app.kubernetes.io/name: hw-fault-exporter
+    app.kubernetes.io/component: exporter
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9100"
+    prometheus.io/path: "/metrics"
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hw-fault-exporter
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hw-fault-exporter
+        app.kubernetes.io/component: exporter
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9100"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: hw-fault-exporter
+      hostNetwork: false
+      hostPID: false
+
+      nodeSelector:
+        kubernetes.io/arch: arm64
+
+      tolerations:
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+
+      containers:
+        - name: hw-fault-exporter
+          image: ghcr.io/hanna-hawa/fault-oracle/hw-fault-exporter:latest  # pin to SHA in production
+          imagePullPolicy: Always
+          args:
+            - --listen-addr
+            - :9100
+            - --sysfs-root
+            - /sys
+            - --log-level
+            - info
+
+          ports:
+            - name: metrics
+              containerPort: 9100
+              protocol: TCP
+
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+
+          volumeMounts:
+            - name: sys
+              mountPath: /sys
+              readOnly: true
+
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 9100
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 9100
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 2
+
+      volumes:
+        - name: sys
+          hostPath:
+            path: /sys
+            type: Directory
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hw-fault-exporter
+  namespace: hw-fault-resilience
+  labels:
+    app.kubernetes.io/name: hw-fault-exporter
+    app.kubernetes.io/component: exporter
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9100"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  clusterIP: None  # Headless — scrape each pod individually
+  selector:
+    app.kubernetes.io/name: hw-fault-exporter
+  ports:
+    - name: metrics
+      port: 9100
+      targetPort: 9100
+      protocol: TCP
+
+---
+# ServiceMonitor for Prometheus Operator (install separately if using kube-prometheus-stack)
+# Requires: kubectl apply -f https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_servicemonitors.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: hw-fault-exporter
+  namespace: hw-fault-resilience
+  labels:
+    app.kubernetes.io/name: hw-fault-exporter
+    app.kubernetes.io/component: exporter
+    # Match your Prometheus Operator's serviceMonitorSelector label here:
+    release: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hw-fault-exporter
+  namespaceSelector:
+    matchNames:
+      - hw-fault-resilience
+  endpoints:
+    - port: metrics
+      interval: 15s
+      path: /metrics
+      scheme: http

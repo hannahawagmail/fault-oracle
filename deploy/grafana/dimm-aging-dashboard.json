@@ -1,0 +1,79 @@
+{
+  "title": "DIMM Aging & Lifecycle",
+  "uid": "dimm-aging",
+  "tags": ["dimm", "aging", "memory", "fault-resilience"],
+  "refresh": "10m",
+  "panels": [
+    {
+      "title": "CE Rate with Linear Regression",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 0},
+      "fieldConfig": {
+        "defaults": {"unit": "short"},
+        "overrides": [
+          {"matcher": {"id": "byRegexp", "options": "CE rate.*"}, "properties": [{"id": "custom.lineWidth", "value": 2}]},
+          {"matcher": {"id": "byRegexp", "options": "Regression.*"}, "properties": [{"id": "custom.lineStyle", "value": {"fill": "dash", "dash": [8, 8]}}]}
+        ]
+      },
+      "targets": [
+        {
+          "expr": "increase(edac_correctable_errors_total[1d])",
+          "legendFormat": "CE rate — {{instance}} mc{{mc}}",
+          "refId": "A"
+        },
+        {
+          "expr": "dimm_aging_ce_rate_slope * (time() - time() % 86400) / 86400 + dimm_aging_ce_rate_slope",
+          "legendFormat": "Regression — {{instance}} mc{{mc}}",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "title": "DIMM Health Score",
+      "type": "table",
+      "datasource": "Prometheus",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 10},
+      "targets": [{
+        "expr": "dimm_aging_health_score",
+        "legendFormat": "{{instance}} mc={{mc}}",
+        "refId": "A",
+        "instant": true
+      }],
+      "fieldConfig": {
+        "overrides": [{"matcher": {"id": "byName", "options": "Value"}, "properties": [
+          {"id": "unit", "value": "percentunit"},
+          {"id": "thresholds", "value": {"steps": [{"value": 0, "color": "red"}, {"value": 0.5, "color": "yellow"}, {"value": 0.9, "color": "green"}]}},
+          {"id": "custom.displayMode", "value": "color-background"}
+        ]}]
+      }
+    },
+    {
+      "title": "Projected Days to Warn Threshold",
+      "type": "table",
+      "datasource": "Prometheus",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 10},
+      "targets": [{
+        "expr": "dimm_aging_projected_days_to_threshold",
+        "legendFormat": "{{instance}} mc={{mc}}",
+        "refId": "A",
+        "instant": true
+      }],
+      "fieldConfig": {
+        "overrides": [{"matcher": {"id": "byName", "options": "Value"}, "properties": [
+          {"id": "unit", "value": "d"},
+          {"id": "thresholds", "value": {"steps": [{"value": 0, "color": "red"}, {"value": 30, "color": "yellow"}, {"value": 90, "color": "green"}]}},
+          {"id": "custom.displayMode", "value": "color-background"}
+        ]}]
+      }
+    },
+    {
+      "title": "CE Rate Slope (errors/day)",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "gridPos": {"h": 6, "w": 24, "x": 0, "y": 18},
+      "fieldConfig": {"defaults": {"unit": "short"}},
+      "targets": [{"expr": "dimm_aging_ce_rate_slope", "legendFormat": "{{instance}} mc={{mc}}", "refId": "A"}]
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: Apache-2.0
+[tool.mutmut]
+paths_to_mutate = "replay/"
+backup = false
+runner = "python3 -m pytest tests/ -x -q --tb=no"
+tests_dir = "tests/"
+dict_synonyms = "Struct, NamedStruct"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-p no:cacheprovider"
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.coverage.run]
+source = ["replay"]
+omit = ["tests/*", "tools/*"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+
+# Storage package coverage (run with: python3 -m pytest storage/tests/ --cov=storage
+# --cov-config=pyproject.toml --cov-report=term-missing from the repo root)
+# Omit the hyphen-named CLI entry points (not importable; identical logic lives in the
+# underscore-named shims that tests actually import).
+[tool.coverage.storage]
+omit = [
+    "storage/*-collector.py",
+    "storage/*-predictor.py",
+]

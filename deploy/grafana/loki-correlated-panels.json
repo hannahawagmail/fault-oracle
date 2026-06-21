@@ -1,0 +1,45 @@
+[
+  {
+    "title": "hw-fault-exporter Logs (Loki)",
+    "type": "logs",
+    "datasource": "Loki",
+    "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16},
+    "options": {
+      "showTime": true,
+      "showLabels": true,
+      "showCommonLabels": false,
+      "wrapLogMessage": false,
+      "sortOrder": "Descending",
+      "dedupStrategy": "none",
+      "enableLogDetails": true
+    },
+    "targets": [
+      {
+        "expr": "{job=\"hw-fault-exporter\", node=~\"$node\"} |= \"\" | json | level=~\"$log_level\"",
+        "legendFormat": "",
+        "refId": "A"
+      }
+    ]
+  },
+  {
+    "title": "EDAC CE Rate + Correlated Errors (Prometheus + Loki)",
+    "type": "timeseries",
+    "datasource": "Prometheus",
+    "gridPos": {"h": 8, "w": 24, "x": 0, "y": 8},
+    "fieldConfig": {"defaults": {"unit": "cps"}},
+    "targets": [
+      {
+        "datasource": "Prometheus",
+        "expr": "rate(edac_correctable_errors_total[5m])",
+        "legendFormat": "CE rate — {{mc}}",
+        "refId": "A"
+      },
+      {
+        "datasource": "Loki",
+        "expr": "count_over_time({job=\"hw-fault-exporter\"} |= \"error\" [5m])",
+        "legendFormat": "Log errors [5m]",
+        "refId": "B"
+      }
+    ]
+  }
+]

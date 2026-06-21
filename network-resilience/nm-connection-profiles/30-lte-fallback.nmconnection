@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: Apache-2.0
+# 30-lte-fallback.nmconnection — LTE/4G modem fallback connection
+# Priority 10: used only when both eth0 and WiFi are unavailable
+#
+# Requires: ModemManager (mmcli) + a supported USB/PCIe LTE modem.
+# ModemManager device path is usually /dev/ttyUSB0 or /dev/cdc-wdm0;
+# NetworkManager auto-detects the modem via ModemManager D-Bus interface —
+# no explicit device path is needed in this keyfile.
+#
+# Deploy: cp 30-lte-fallback.nmconnection /etc/NetworkManager/system-connections/
+#         chmod 600 /etc/NetworkManager/system-connections/30-lte-fallback.nmconnection
+#         nmcli connection reload
+#
+# APN: "internet" is a common generic APN. Replace with your carrier's APN:
+#   e.g., AT&T="broadband", T-Mobile="fast.t-mobile.com", Verizon="vzwinternet"
+#
+# autoconnect-retries=5: modems are slow to register on the network; more retries
+# compensate for initial registration delays.
+#
+# route-metric=300: lowest priority path. Kernel only sends traffic via LTE when
+# no eth0 (metric 100) or WiFi (metric 200) routes exist.
+
+[connection]
+id=lte-fallback
+uuid=c3d4e5f6-a7b8-9012-cdef-123456789012
+type=gsm
+autoconnect=true
+# Priority 10: lowest — last resort only
+autoconnect-priority=10
+# 5 retries: modem registration can be slow; be patient
+autoconnect-retries=5
+timestamp=0
+
+[gsm]
+# Replace with your carrier APN
+apn=internet
+# Standard GSM dial string for data connections
+number=*99#
+# Leave blank if your carrier requires no credentials (most modern data plans)
+username=
+password=
+# home-only=false: allow roaming to keep connectivity in remote areas.
+# Set to true to prevent surprise roaming charges if preferred.
+home-only=false
+
+[ipv4]
+method=auto
+# route-metric=300: kernel prefers eth0 (100) and WiFi (200) over LTE (300)
+route-metric=300
+# never-default=false: LTE IS allowed to be the default gateway when it is the
+# only active connection. Set to true if you only want LTE for specific routes.
+never-default=false
+
+[ipv6]
+# LTE carriers frequently do not provision IPv6 on data APNs; ignoring it avoids
+# long DAD timeouts that delay connection establishment.
+method=ignore

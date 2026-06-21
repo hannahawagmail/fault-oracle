@@ -1,4 +1,4 @@
-# arm-linux-fault-resilience
+# fault-oracle
 
 A reference implementation and methodology distillation for kernel-level hardware-fault
 detection, recovery, and observability on ARM Linux platforms in datacenter-scale deployments.
@@ -58,7 +58,7 @@ methodology reference, not as a description of any production deployment.
 ## What's in This Repo
 
 ```
-arm-linux-fault-resilience/
+fault-oracle/
 ├── docs/                        Reference documentation
 │   ├── hardware-fault-taxonomy.md   Correctable vs. uncorrectable; L1/L2/DRAM/PCIe/MCE
 │   ├── edac-framework-primer.md     Linux EDAC subsystem internals for non-kernel readers
@@ -95,14 +95,34 @@ arm-linux-fault-resilience/
 │   ├── build-and-test.yml           Full pipeline: build → inject → scrape → assert
 │   └── qemu-boot.sh                 Boot QEMU ARM64 virt, load module, run tests
 │
-└── tests/                       Comprehensive test suite (pytest + shell)
-    ├── conftest.py                  Shared fixtures and mock sysfs tree
-    ├── test_edac_counters.py        Exporter metrics ↔ sysfs value reconciliation
-    ├── test_aer_counters.py         AER collector correctness
-    ├── test_mce_counters.py         MCE collector correctness
-    ├── test_collectors_unit.py      Unit tests for each collector in isolation
-    ├── test_fault_injection.py      Injection → counter increment verification
-    └── test_replay_parse.py         Parse → replay roundtrip on sample traces
+├── tests/                       Comprehensive test suite (pytest + shell)
+│   ├── conftest.py                  Shared fixtures and mock sysfs tree
+│   ├── requirements.txt             Pinned Python test dependencies
+│   ├── test_edac_counters.py        Exporter metrics ↔ sysfs value reconciliation
+│   ├── test_aer_counters.py         AER collector correctness
+│   ├── test_mce_counters.py         MCE collector correctness
+│   ├── test_collectors_unit.py      Unit tests for each collector in isolation
+│   ├── test_fault_injection.py      Injection → counter increment verification
+│   └── test_replay_parse.py         Parse → replay roundtrip on sample traces
+│
+├── boot-resilience/             Hardware watchdog, A/B rootfs, U-Boot bootcount, Secure Boot/TrustZone
+├── storage-integrity/           Read-only rootfs with overlayfs, power-fail filesystem audit, log-to-tmpfs
+├── kernel-hardening/            panic=10, OOM killer tuning, sysctl hardening, eBPF anomaly detection
+├── ota-updates/                 Atomic OTA with RAUC, systemd watchdog (sd_notify), pre/post-install hooks
+├── network-resilience/          NetworkManager fallback profiles (eth→WiFi→LTE), OOB UART heartbeat
+├── smartnic/                    SmartNIC/DPU three-pillar architecture, P4 data path, DPU control plane
+│
+└── deploy/                      Docker Compose dev stack, Kubernetes DaemonSet, Helm chart
+    ├── docker-compose.yml           Local dev: exporter + Prometheus + Grafana + Alertmanager
+    ├── prometheus.yml               Scrape config for host and DPU exporters
+    ├── grafana-datasource.yml       Grafana Prometheus datasource provisioning
+    ├── grafana-dashboard-provider.yml  Grafana dashboard auto-provisioning
+    ├── alertmanager.yml             Alertmanager routing and receiver config
+    ├── k8s-daemonset.yaml           Kubernetes DaemonSet + Service + ServiceMonitor
+    └── helm/                        Helm chart for parameterized fleet deployment
+        ├── Chart.yaml
+        ├── values.yaml
+        └── templates/
 ```
 
 ---
@@ -210,6 +230,9 @@ sudo ./replay_kernel_state.sh --events /tmp/replay_events.json
 ```bash
 cd tests/
 
+# Install pinned test dependencies:
+pip install -r requirements.txt
+
 # Full pytest suite (uses mock sysfs — no hardware required):
 pytest -v --tb=short
 
@@ -218,6 +241,17 @@ pytest -v --cov=../exporter --cov-report=term-missing --cov-report=html
 
 # Shell-based sysfs verification (requires loaded module):
 bash ../edac-reference/test/verify_edac_sysfs.sh
+```
+
+### Step 8 — Start local dev stack
+
+```bash
+cd deploy/
+docker compose up -d
+
+# Grafana is available at http://localhost:3000 (admin/admin)
+# Prometheus at http://localhost:9090
+# Exporter metrics at http://localhost:9100/metrics
 ```
 
 ---

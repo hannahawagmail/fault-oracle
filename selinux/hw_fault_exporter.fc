@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: Apache-2.0
+# selinux/hw_fault_exporter.fc — File contexts for hw-fault-exporter.
+#
+# Apply with: restorecon -Rv /usr/local/bin/hw-fault-exporter /etc/hw-fault-exporter /var/log/hw-fault-exporter
+
+# Binary
+/usr/local/bin/hw-fault-exporter      --  gen_context(system_u:object_r:hw_fault_exporter_exec_t, s0)
+
+# TLS certificate directory
+/etc/hw-fault-exporter(/.*)?          gen_context(system_u:object_r:hw_fault_exporter_cert_t, s0)
+
+# Log directory
+/var/log/hw-fault-exporter(/.*)?      gen_context(system_u:object_r:hw_fault_exporter_log_t, s0)

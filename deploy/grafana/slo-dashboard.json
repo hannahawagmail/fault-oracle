@@ -1,0 +1,111 @@
+{
+  "title": "Collector SLO — Availability & Error Budget",
+  "uid": "hw-fault-slo",
+  "tags": ["slo", "fault-resilience", "availability"],
+  "refresh": "1m",
+  "panels": [
+    {
+      "id": 60, "title": "30-Day Availability %", "type": "stat",
+      "gridPos": {"h": 5, "w": 6, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "red"},
+            {"color": "yellow", "value": 0.99},
+            {"color": "green", "value": 0.995}
+          ]},
+          "mappings": []
+        }
+      },
+      "targets": [{
+        "expr": "avg(slo:collector_up:ratio_rate30d{job=\"hw-fault-exporter\"})",
+        "refId": "A", "instant": true
+      }],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "none"}
+    },
+    {
+      "id": 61, "title": "Error Budget Remaining", "type": "gauge",
+      "gridPos": {"h": 5, "w": 6, "x": 6, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit", "min": 0, "max": 1,
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "red"},
+            {"color": "yellow", "value": 0.10},
+            {"color": "green", "value": 0.50}
+          ]}
+        }
+      },
+      "targets": [{
+        "expr": "avg(slo:collector_up:error_budget_remaining{job=\"hw-fault-exporter\", collector=~\"$collector\"})",
+        "refId": "A", "instant": true
+      }],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "showThresholdLabels": true}
+    },
+    {
+      "id": 62, "title": "Burn Rate (multi-window)", "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 5},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {"defaults": {"unit": "short", "custom": {"lineWidth": 2}}},
+      "targets": [
+        {
+          "expr": "slo:collector_up:burn_rate1h{job=\"hw-fault-exporter\", collector=~\"$collector\", node=~\"$node\"}",
+          "legendFormat": "{{node}}/{{collector}} 1h", "refId": "A"
+        },
+        {
+          "expr": "slo:collector_up:burn_rate6h{job=\"hw-fault-exporter\", collector=~\"$collector\", node=~\"$node\"}",
+          "legendFormat": "{{node}}/{{collector}} 6h", "refId": "B"
+        },
+        {
+          "expr": "slo:collector_up:burn_rate3d{job=\"hw-fault-exporter\", collector=~\"$collector\", node=~\"$node\"}",
+          "legendFormat": "{{node}}/{{collector}} 3d", "refId": "C"
+        }
+      ],
+      "options": {"tooltip": {"mode": "multi"}, "legend": {"displayMode": "table", "placement": "bottom"}},
+      "thresholds": {"steps": [{"color": "transparent"}, {"color": "red", "value": 14.4}]}
+    },
+    {
+      "id": 63, "title": "Per-Collector Availability (30d)", "type": "table",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "targets": [{
+        "expr": "slo:collector_up:ratio_rate30d{job=\"hw-fault-exporter\"}",
+        "refId": "A", "instant": true, "format": "table"
+      }],
+      "transformations": [
+        {"id": "labelsToFields", "options": {}},
+        {"id": "organize", "options": {"renameByName": {"node": "Node", "collector": "Collector", "Value": "Availability (30d)"}}}
+      ]
+    },
+    {
+      "id": 64, "title": "Error Budget Burn Rate Heatmap", "type": "heatmap",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 13},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "targets": [{
+        "expr": "slo:collector_up:burn_rate1h{job=\"hw-fault-exporter\", node=~\"$node\"}",
+        "legendFormat": "{{node}} {{collector}}", "refId": "A"
+      }],
+      "options": {"calculate": false, "yAxis": {"unit": "short"}, "color": {"scheme": "Oranges", "mode": "scheme"}}
+    }
+  ],
+  "templating": {
+    "list": [
+      {"name": "datasource", "type": "datasource", "pluginId": "prometheus", "label": "Datasource"},
+      {
+        "name": "node", "type": "query",
+        "datasource": {"type": "prometheus", "uid": "${datasource}"},
+        "query": "label_values(fault_resilience_collector_up{job=\"hw-fault-exporter\"}, node)",
+        "label": "Node", "multi": true, "includeAll": true, "allValue": ".*", "refresh": 2
+      },
+      {
+        "name": "collector", "type": "query",
+        "datasource": {"type": "prometheus", "uid": "${datasource}"},
+        "query": "label_values(fault_resilience_collector_up{job=\"hw-fault-exporter\"}, collector)",
+        "label": "Collector", "multi": true, "includeAll": true, "allValue": ".*", "refresh": 2
+      }
+    ]
+  }
+}

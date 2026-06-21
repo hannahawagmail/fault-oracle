@@ -1,0 +1,120 @@
+.\" SPDX-License-Identifier: Apache-2.0
+.TH PARSE_EDAC_TRACE 1 "2024-01-15" "arm-linux-fault-resilience" "User Commands"
+.SH NAME
+parse_edac_trace \- parse kernel EDAC / AER / MCE log traces into structured JSON
+.SH SYNOPSIS
+.B parse_edac_trace.py
+[\fB\-i\fR \fIFILE\fR]
+[\fB\-o\fR \fIFILE\fR]
+[\fB\-\-event\-types\fR \fITYPES\fR]
+[\fB\-\-pretty\fR]
+[\fB\-\-stats\fR | \fB\-\-no\-stats\fR]
+[\fB\-\-log\-level\fR \fILEVEL\fR]
+.SH DESCRIPTION
+.B parse_edac_trace.py
+reads a Linux kernel ring buffer log (dmesg output, journald export, or a
+captured log file) and extracts hardware error events from the EDAC, PCIe
+AER, and Machine Check Event (MCE) subsystems into a structured JSON format.
+.PP
+The output JSON is suitable for postmortem analysis, replay via
+.BR replay_kernel_state.sh (1),
+and ingestion into Prometheus via the node_exporter textfile collector.
+.SH OPTIONS
+.TP
+.BR \-i ", " \-\-input " " \fIFILE\fR
+Input log file. Use
+.B \-
+for stdin (default).
+.TP
+.BR \-o ", " \-\-output " " \fIFILE\fR
+Output JSON file. Use
+.B \-
+for stdout (default).
+.TP
+.B \-\-event\-types \fITYPES\fR
+Comma-separated list of event types to include.
+Valid values: \fBCE\fR, \fBUE\fR, \fBAER_CE\fR, \fBAER_UE\fR, \fBMCE\fR.
+Default: all types.
+.TP
+.B \-\-pretty
+Pretty-print JSON output with 2-space indentation.
+.TP
+.B \-\-stats
+Print parse statistics to stderr after parsing (default: enabled).
+.TP
+.B \-\-no\-stats
+Suppress statistics output.
+.TP
+.B \-\-log\-level \fILEVEL\fR
+Set the logging level. One of \fBDEBUG\fR, \fBINFO\fR, \fBWARNING\fR, \fBERROR\fR.
+Default: WARNING.
+.SH OUTPUT FORMAT
+Each event is a JSON object with the following fields:
+.TP
+.B seq
+Integer event sequence number (0-based).
+.TP
+.B event_type
+One of: CE, UE, AER_CE, AER_UE, MCE.
+.TP
+.B subsystem
+One of: EDAC, AER, MCE.
+.TP
+.B controller
+Memory controller identifier, e.g. "MC0".
+.TP
+.B count
+Number of errors represented by this event.
+.TP
+.B timestamp_str
+Original timestamp string from the log.
+.SH SUPPORTED LOG FORMATS
+Raw dmesg, journald \fB\-o short\-monotonic\fR, syslog with timestamps, and
+stripped logs without timestamps are all supported.
+.SH EXAMPLES
+Parse a captured kernel log and write pretty-printed JSON:
+.PP
+.nf
+.RS
+python3 replay/parse_edac_trace.py \\
+    \-\-input /var/log/kern.log \\
+    \-\-output errors.json \\
+    \-\-pretty
+.RE
+.fi
+.PP
+Filter for correctable errors only, pipe to jq:
+.PP
+.nf
+.RS
+python3 replay/parse_edac_trace.py \-\-event\-types CE | jq '.[] | .controller'
+.RE
+.fi
+.PP
+Generate a synthetic log and parse it:
+.PP
+.nf
+.RS
+python3 tools/generate_edac_log.py \-\-events 100 \\
+    | python3 replay/parse_edac_trace.py \-\-pretty
+.RE
+.fi
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Input file not found or unreadable.
+.TP
+.B 2
+Parse error or invalid arguments.
+.SH SEE ALSO
+.BR replay_kernel_state.sh (1),
+.BR hw-fault-exporter (1),
+.BR dmesg (1),
+.BR journalctl (1)
+.SH AUTHORS
+Hanna Hawa <hanna.hawa@gmail.com>
+.SH LICENSE
+Apache License 2.0. See the LICENSE file in the source repository.

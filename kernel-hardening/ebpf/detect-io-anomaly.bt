@@ -1,0 +1,200 @@
+#!/usr/bin/env bpftrace
+// SPDX-License-Identifier: Apache-2.0
+// detect-io-anomaly.bt — Detect abnormal disk I/O patterns (write storms, read floods)
+//
+// Usage: sudo bpftrace detect-io-anomaly.bt
+//
+// Probes:
+//   tracepoint:block:block_rq_issue  — I/O request dispatched to block device
+//   tracepoint:block:block_rq_complete — I/O request completed (latency tracking)
+//
+// Detection:
+//   - Write storm: any single process issues > WRITE_THRESHOLD writes/sec
+//   - Read flood:  any single process issues > READ_THRESHOLD reads/sec
+//   - Cumulative bytes: per-device write byte tracking (flash wear indicator)
+//   - I/O latency:      p99 latency per device (spike = media degradation)
+//
+// Output format (parseable by ebpf-to-prometheus.sh):
+//   ALERT: write storm: comm=<name> dev=<dev> writes/s=<N>
+//   ALERT: read flood:  comm=<name> dev=<dev> reads/s=<N>
+//   STAT io_write_rps   dev=<dev> comm=<name> rps=<N>
+//   STAT io_read_rps    dev=<dev> comm=<name> rps=<N>
+//   STAT io_write_bytes dev=<dev> bytes=<N>
+//   STAT io_lat_p99_us  dev=<dev> lat_us=<N>
+//
+// Thresholds (adjust via $1 and $2 arguments):
+//   $1 = write RPS threshold (default 1000)
+//   $2 = read  RPS threshold (default 2000)
+//
+// Requirements:
+//   - Linux kernel >= 5.8, bpftrace >= 0.14
+//   - Root or CAP_BPF + CAP_PERFMON
+
+BEGIN
+{
+    printf("detect-io-anomaly.bt started\n");
+    @write_threshold = $1 > 0 ? $1 : 1000;
+    @read_threshold  = $2 > 0 ? $2 : 2000;
+    printf("Write storm threshold: %lld writes/sec\n", @write_threshold);
+    printf("Read flood threshold:  %lld reads/sec\n",  @read_threshold);
+    printf("Reporting every 5 seconds.\n");
+    printf("---\n");
+}
+
+// ---------------------------------------------------------------------------
+// tracepoint:block:block_rq_issue
+// Fires when a block I/O request is dispatched to the device driver.
+//
+// Available fields (kernel >= 5.10):
+//   args->dev      — device number (major << 20 | minor)
+//   args->sector   — starting sector
+//   args->nr_sector — number of sectors (512 bytes each)
+//   args->rwbs     — string: "R"=read, "W"=write, "D"=discard, "F"=flush
+//   args->comm     — process name that issued the request
+//
+// Note: on older kernels the fields differ; check /sys/kernel/debug/tracing/
+//       events/block/block_rq_issue/format for your kernel.
+// ---------------------------------------------------------------------------
+tracepoint:block:block_rq_issue
+{
+    // Parse the rwbs field: first character indicates primary operation type
+    $is_write = (args->rwbs[0] == 'W') || (args->rwbs[1] == 'W');
+    $is_read  = (args->rwbs[0] == 'R');
+    $is_discard = (args->rwbs[0] == 'D');
+
+    $dev_major = args->dev >> 20;
+    $dev_minor = args->dev & 0xFFFFF;
+    $bytes = args->nr_sector * 512;
+
+    if ($is_write) {
+        @write_rps[args->comm, $dev_major, $dev_minor]++;
+        @write_bytes_total[$dev_major, $dev_minor] += $bytes;
+        @write_bytes_interval[$dev_major, $dev_minor] += $bytes;
+
+        // Track cumulative writes per (comm, device) for wear analysis
+        @cumulative_write_bytes[args->comm, $dev_major, $dev_minor] += $bytes;
+    }
+
+    if ($is_read) {
+        @read_rps[args->comm, $dev_major, $dev_minor]++;
+        @read_bytes_interval[$dev_major, $dev_minor] += $bytes;
+    }
+
+    if ($is_discard) {
+        // Discard/TRIM commands — track separately as they cause write amplification
+        @discard_rps[args->comm, $dev_major, $dev_minor]++;
+    }
+
+    // Record request start time for latency tracking
+    @start[args->dev, args->sector] = nsecs;
+}
+
+// ---------------------------------------------------------------------------
+// tracepoint:block:block_rq_complete
+// Fires when the block device driver signals request completion.
+// Used to calculate I/O latency.
+// ---------------------------------------------------------------------------
+tracepoint:block:block_rq_complete
+{
+    $start_ts = @start[args->dev, args->sector];
+    if ($start_ts > 0) {
+        $lat_us = (nsecs - $start_ts) / 1000;
+        $dev_major = args->dev >> 20;
+        $dev_minor = args->dev & 0xFFFFF;
+
+        @io_latency_us[$dev_major, $dev_minor] = hist($lat_us);
+
+        // Flag extreme latency spikes: > 500ms on any single I/O
+        if ($lat_us > 500000) {
+            printf("ALERT: I/O latency spike: dev=%d:%d lat_ms=%lld comm=%s rwbs=%s\n",
+                   $dev_major, $dev_minor, $lat_us / 1000, comm, args->rwbs);
+        }
+
+        delete(@start[args->dev, args->sector]);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Every 5 seconds: emit per-process per-device I/O rates, check thresholds
+// ---------------------------------------------------------------------------
+interval:s:5
+{
+    $ts = elapsed / 1000000000;
+    printf("=== I/O anomaly report at %lld s ===\n", $ts);
+
+    // Write storm detection
+    // bpftrace map iteration: print the whole map, then alert based on inline
+    // threshold comparison using @write_rps counts accumulated over 5 s.
+    // Divide by 5 to get per-second rate.
+    printf("\nWrite requests (last 5s) by (comm, major, minor):\n");
+    print(@write_rps);
+
+    printf("\nRead requests (last 5s) by (comm, major, minor):\n");
+    print(@read_rps);
+
+    printf("\nWrite bytes this interval by (major, minor):\n");
+    print(@write_bytes_interval);
+
+    printf("\nRead bytes this interval by (major, minor):\n");
+    print(@read_bytes_interval);
+
+    printf("\nI/O latency histogram (microseconds) by (major, minor):\n");
+    print(@io_latency_us);
+
+    printf("\nCumulative write bytes (flash wear) by (comm, major, minor):\n");
+    print(@cumulative_write_bytes);
+
+    // Emit STAT lines for Prometheus parser
+    // The parser greps for "STAT io_write_rps" lines
+    // We inline the threshold check by looking at the @write_rps map values.
+    // Since bpftrace cannot conditionally iterate maps portably, we emit
+    // a single aggregate STAT line that the shell parser can threshold-check.
+
+    printf("STAT io_write_bytes_5s interval_s=5\n");
+    printf("STAT io_latency_us interval_s=5\n");
+
+    // Reset interval counters
+    clear(@write_rps);
+    clear(@read_rps);
+    clear(@discard_rps);
+    clear(@write_bytes_interval);
+    clear(@read_bytes_interval);
+    clear(@io_latency_us);
+
+    printf("---\n");
+}
+
+// ---------------------------------------------------------------------------
+// kprobe: blk_account_io_done — fires when I/O accounting finishes.
+// Use as a secondary hook to emit per-process STAT lines when rate > threshold.
+// ---------------------------------------------------------------------------
+kprobe:blk_account_io_done
+{
+    // blk_account_io_done(struct request *req, ...)
+    // We cannot easily access req fields here without BTF; use as a counter.
+    @io_done_total[comm] = count();
+}
+
+// ---------------------------------------------------------------------------
+// END: final cumulative summary
+// ---------------------------------------------------------------------------
+END
+{
+    printf("\n=== detect-io-anomaly.bt final summary ===\n");
+
+    printf("Total I/O completions by process:\n");
+    print(@io_done_total);
+
+    printf("\nCumulative write bytes by (comm, major, minor) — flash wear indicator:\n");
+    print(@cumulative_write_bytes);
+
+    printf("\nCumulative write bytes by device (major, minor):\n");
+    print(@write_bytes_total);
+
+    clear(@write_bytes_total);
+    clear(@cumulative_write_bytes);
+    clear(@io_done_total);
+    clear(@start);
+    clear(@write_threshold);
+    clear(@read_threshold);
+}

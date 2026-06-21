@@ -1,0 +1,70 @@
+[
+  {
+    "title": "rasdaemon MC Events Rate (overlay EDAC)",
+    "type": "timeseries",
+    "datasource": "Prometheus",
+    "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+    "fieldConfig": {
+      "defaults": {"unit": "cps", "custom": {"lineWidth": 2}},
+      "overrides": [
+        {"matcher": {"id": "byName", "options": "EDAC CE rate"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "blue"}}]},
+        {"matcher": {"id": "byName", "options": "rasdaemon CE rate"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "orange"}}]}
+      ]
+    },
+    "targets": [
+      {
+        "expr": "rate(edac_correctable_errors_total[5m])",
+        "legendFormat": "EDAC CE rate — mc{{mc}} csrow{{csrow}}",
+        "refId": "A"
+      },
+      {
+        "expr": "rate(ras_mc_event_total{type=\"CE\"}[5m])",
+        "legendFormat": "rasdaemon CE rate — mc{{mc}}",
+        "refId": "B"
+      }
+    ],
+    "options": {
+      "tooltip": {"mode": "multi"},
+      "legend": {"displayMode": "list", "placement": "bottom"}
+    }
+  },
+  {
+    "title": "rasdaemon AER Events Rate",
+    "type": "timeseries",
+    "datasource": "Prometheus",
+    "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+    "fieldConfig": {"defaults": {"unit": "cps"}},
+    "targets": [
+      {
+        "expr": "rate(ras_aer_event_total[5m])",
+        "legendFormat": "{{severity}} — {{dev_id}} — {{error_type}}",
+        "refId": "A"
+      }
+    ]
+  },
+  {
+    "title": "rasdaemon DB Total Events",
+    "type": "stat",
+    "datasource": "Prometheus",
+    "gridPos": {"h": 4, "w": 6, "x": 0, "y": 8},
+    "fieldConfig": {
+      "defaults": {
+        "unit": "short",
+        "thresholds": {"steps": [
+          {"value": 0, "color": "green"},
+          {"value": 100, "color": "yellow"},
+          {"value": 1000, "color": "red"}
+        ]}
+      }
+    },
+    "targets": [{"expr": "ras_exporter_db_events_total", "legendFormat": "Total", "refId": "A"}]
+  },
+  {
+    "title": "rasdaemon Exporter Last Run",
+    "type": "stat",
+    "datasource": "Prometheus",
+    "gridPos": {"h": 4, "w": 6, "x": 6, "y": 8},
+    "fieldConfig": {"defaults": {"unit": "dateTimeAsIso"}},
+    "targets": [{"expr": "ras_exporter_last_run_timestamp * 1000", "legendFormat": "Last run", "refId": "A"}]
+  }
+]

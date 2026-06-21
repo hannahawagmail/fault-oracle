@@ -1,0 +1,115 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# deploy/alerts/recording-rules.yaml
+#
+# Prometheus recording rules for ARM Linux hardware fault resilience.
+# Pre-compute expensive aggregations so Grafana dashboard panels load fast.
+#
+# Load alongside the alerting rules:
+#   rule_files:
+#     - 'deploy/alerts/recording-rules.yaml'
+#     - 'deploy/alerts/fault-resilience-rules.yaml'
+
+groups:
+  - name: edac.rates
+    interval: 60s
+    rules:
+
+      # 5-minute CE rate per channel (per-node, per-controller granularity)
+      - record: edac:correctable_errors:rate5m
+        expr: |
+          rate(edac_correctable_errors_total[5m])
+
+      # 5-minute CE rate aggregated per controller (across all csrows/channels)
+      - record: edac:controller_ce:rate5m
+        expr: |
+          sum by (instance, controller) (
+            rate(edac_correctable_errors_total[5m])
+          )
+
+      # 5-minute CE rate aggregated per node (all controllers combined)
+      - record: edac:node_ce:rate5m
+        expr: |
+          sum by (instance) (
+            rate(edac_correctable_errors_total[5m])
+          )
+
+      # 1-hour CE increase per controller — useful for trending dashboards
+      - record: edac:controller_ce:increase1h
+        expr: |
+          sum by (instance, controller) (
+            increase(edac_correctable_errors_total[1h])
+          )
+
+      # 24-hour CE increase per node — daily digest metric
+      - record: edac:node_ce:increase24h
+        expr: |
+          sum by (instance) (
+            increase(edac_correctable_errors_total[24h])
+          )
+
+      # Total UE increase over 5 minutes per csrow (alert feed)
+      - record: edac:uncorrectable_errors:increase5m
+        expr: |
+          increase(edac_uncorrectable_errors_total[5m])
+
+      # Total UE increase over 24 hours per node
+      - record: edac:node_ue:increase24h
+        expr: |
+          sum by (instance) (
+            increase(edac_uncorrectable_errors_total[24h])
+          )
+
+  - name: aer.rates
+    interval: 60s
+    rules:
+
+      # 5-minute AER correctable rate per device
+      - record: aer:correctable:rate5m
+        expr: |
+          rate(pcie_aer_correctable_total[5m])
+
+      # 10-minute AER non-fatal rate per device (alert feed)
+      - record: aer:nonfatal:rate10m
+        expr: |
+          rate(pcie_aer_uncorrectable_total{severity="nonfatal"}[10m])
+
+      # Total AER devices per node (useful for inventory dashboards)
+      - record: aer:devices_per_node
+        expr: |
+          count by (instance) (pcie_aer_devices_total)
+
+  - name: exporter.health
+    interval: 30s
+    rules:
+
+      # Fraction of collectors that are up per node (1.0 = all up)
+      - record: fault_resilience:collectors_up_ratio
+        expr: |
+          avg by (instance) (fault_resilience_collector_up)
+
+      # Scrape duration 95th percentile across all collectors per node
+      - record: fault_resilience:scrape_duration_p95
+        expr: |
+          quantile by (instance) (0.95,
+            hw_fault_exporter_scrape_duration_seconds
+          )
+
+  - name: fleet.summary
+    interval: 300s
+    rules:
+
+      # Fleet-wide: number of nodes currently reporting any CE
+      - record: edac:fleet_nodes_with_ce
+        expr: |
+          count(edac:node_ce:rate5m > 0)
+
+      # Fleet-wide: nodes with sustained CE storm (>10/min)
+      - record: edac:fleet_nodes_in_storm
+        expr: |
+          count(edac:node_ce:rate5m * 60 > 10) or vector(0)
+
+      # Fleet-wide: nodes with any UE in last 24h
+      - record: edac:fleet_nodes_with_ue_24h
+        expr: |
+          count(edac:node_ue:increase24h > 0) or vector(0)

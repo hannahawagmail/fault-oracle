@@ -1,0 +1,18 @@
+config EDAC_CORTEX_REF
+	tristate "ARM Cortex-A72 Reference EDAC driver"
+	depends on EDAC && ARM64
+	help
+	  Generic reference EDAC driver for ARM Cortex-A72 L2 cache and
+	  associated memory controller error detection and correction.
+
+	  This driver demonstrates the standard EDAC poll-based reporting
+	  interface. It is designed to run under QEMU virt (ARM64) and
+	  on real Cortex-A72 based hardware where the memory controller
+	  exposes error status registers in a compatible format.
+
+	  The driver registers one memory controller instance (mc0) with
+	  configurable numbers of csrows and channels. Error injection is
+	  supported via the kernel fault injection framework when
+	  CONFIG_FAULT_INJECTION=y.
+
+	  If unsure, say M.

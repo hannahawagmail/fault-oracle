@@ -1,0 +1,243 @@
+# SPDX-License-Identifier: Apache-2.0
+# alert-rules.yml — Prometheus alerting rules for hardware fault resilience
+#
+# Usage (standalone Prometheus):
+#   Add to prometheus.yml rule_files: [alert-rules.yml]
+#
+# Usage (Kubernetes / Prometheus Operator):
+#   kubectl apply -f alert-rules.yml  (after adding PrometheusRule CRD wrapper)
+#   See dashboards/README.md for full Kubernetes PrometheusRule manifest example.
+#
+# Runbook: docs/runbook.md
+
+groups:
+
+  # ---------------------------------------------------------------------------
+  # EDAC — Error Detection and Correction (memory subsystem)
+  # ---------------------------------------------------------------------------
+  - name: edac.rules
+    rules:
+
+      # EDACHighCERate
+      # Threshold rationale: Industry guidance (JEDEC JESD209) treats >10 CE/hour
+      # on a single controller as a signal of elevated DIMM stress. Below this rate,
+      # single-bit errors are considered within normal operational tolerance for
+      # modern DDR4/DDR5 under moderate workloads. Firing at 10m gives time for
+      # a transient workload spike to subside before paging an operator.
+      - alert: EDACHighCERate
+        expr: rate(edac_correctable_errors_total[1h]) * 3600 > 10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Elevated correctable memory error rate on {{ $labels.controller }}"
+          description: >
+            Controller {{ $labels.controller }} (csrow={{ $labels.csrow }},
+            channel={{ $labels.channel }}) is recording {{ $value | humanize }}
+            correctable errors per hour. This may indicate a degrading DIMM.
+            Monitor for escalation. Runbook: docs/runbook.md#edachighcerate
+
+      # EDACVeryHighCERate
+      # Threshold rationale: >100 CE/hour indicates active cell degradation.
+      # At this rate a DIMM typically fails completely within days to weeks.
+      # The 5m for: window is short to ensure rapid operator awareness, but
+      # long enough to avoid spurious alerts during ECC scrub bursts.
+      - alert: EDACVeryHighCERate
+        expr: rate(edac_correctable_errors_total[1h]) * 3600 > 100
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Very high correctable memory error rate on {{ $labels.controller }}"
+          description: >
+            Controller {{ $labels.controller }} (csrow={{ $labels.csrow }},
+            channel={{ $labels.channel }}) is recording {{ $value | humanize }}
+            correctable errors per hour. DIMM replacement is likely required.
+            Initiate DIMM replacement procedure and plan for controlled node
+            evacuation. Runbook: docs/runbook.md#edacveryhighcerate
+
+      # EDACUncorrectableError
+      # Threshold rationale: ANY uncorrectable error (UE) is a system-stability
+      # emergency. UEs cannot be corrected in hardware and cause immediate kernel
+      # panic or silent data corruption. for: 0m fires immediately — there is no
+      # safe grace period for a UE. Operator must act within minutes.
+      - alert: EDACUncorrectableError
+        expr: increase(edac_uncorrectable_errors_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Uncorrectable memory error on {{ $labels.controller }}"
+          description: >
+            Controller {{ $labels.controller }} (csrow={{ $labels.csrow }})
+            has reported an uncorrectable memory error (UE). System stability
+            is at risk. A kernel panic may be imminent. Initiate emergency
+            DIMM replacement procedure immediately and migrate workloads off
+            this node. Runbook: docs/runbook.md#edacuncorrectableerror
+
+      # EDACControllerCESpike
+      # Threshold rationale: >50 CE/hour at the per-{controller,csrow,channel}
+      # granularity points to a specific physical DIMM slot, enabling targeted
+      # replacement rather than replacing all DIMMs on a controller. The 5m
+      # window catches bursts while the hourly projection filters noise.
+      # This alert complements EDACHighCERate by providing DIMM-level locality.
+      - alert: EDACControllerCESpike
+        expr: rate(edac_controller_ce_total[5m]) * 3600 > 50
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Correctable error spike on controller {{ $labels.controller }}"
+          description: >
+            Controller {{ $labels.controller }} is reporting a spike of
+            {{ $value | humanize }} correctable errors/hour. Use the
+            edac_controller_ce_total{controller, csrow, channel} metrics to
+            isolate the specific DIMM slot. Runbook: docs/runbook.md#edaccontrollercespike
+
+  # ---------------------------------------------------------------------------
+  # PCIe AER — Advanced Error Reporting
+  # ---------------------------------------------------------------------------
+  - name: pcie-aer.rules
+    rules:
+
+      # PCIeAERUncorrectableError
+      # Threshold rationale: Any uncorrectable PCIe AER event (non-fatal or fatal)
+      # indicates a hardware link or device fault that can cause DMA errors,
+      # device timeouts, or data loss. for: 0m because uncorrectable errors
+      # require immediate investigation regardless of transience.
+      - alert: PCIeAERUncorrectableError
+        expr: increase(pcie_aer_uncorrectable_total[10m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PCIe uncorrectable AER error on device {{ $labels.device }}"
+          description: >
+            Device {{ $labels.device }} reported an uncorrectable PCIe AER
+            error (type={{ $labels.error_type }}, severity={{ $labels.severity }}).
+            This may cause device malfunction or DMA errors. Check
+            `lspci -vvv` and AER error registers. Runbook: docs/runbook.md#pcieaeruncorrectableerror
+
+      # PCIeAERHighCorrectableRate
+      # Threshold rationale: PCIe correctable errors (e.g., BadTLP, ReceiverError)
+      # are self-healing but >100/hour suggests link signal integrity problems
+      # (bad cable, connector, or lane margining issue). The 15m window avoids
+      # alerting on brief link training events during system boot or hot-add.
+      - alert: PCIeAERHighCorrectableRate
+        expr: rate(pcie_aer_correctable_total[1h]) * 3600 > 100
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High PCIe correctable error rate on device {{ $labels.device }}"
+          description: >
+            Device {{ $labels.device }} is generating {{ $value | humanize }}
+            correctable AER errors per hour (type={{ $labels.error_type }}).
+            High correctable rates often precede uncorrectable errors. Inspect
+            the PCIe link, cables, and slot seating. Runbook: docs/runbook.md#pcieaerhighcorrectablerate
+
+      # PCIeAERFatalError
+      # Threshold rationale: Fatal AER errors indicate the link or device has
+      # entered an unrecoverable state. The PCIe spec defines fatal errors as
+      # those requiring a device reset or replacement. for: 0m — any fatal
+      # error is an immediate action item. May require hardware replacement.
+      - alert: PCIeAERFatalError
+        expr: pcie_aer_uncorrectable_total{severity="fatal"} > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PCIe fatal AER error on device {{ $labels.device }}"
+          description: >
+            Device {{ $labels.device }} has reported a fatal PCIe AER error
+            (type={{ $labels.error_type }}). The device may be non-functional.
+            A hot-reset or hardware replacement may be required.
+            Command: echo 1 > /sys/bus/pci/devices/{{ $labels.device }}/reset
+            Runbook: docs/runbook.md#pcieaerfatalerror
+
+  # ---------------------------------------------------------------------------
+  # MCE — Machine Check Events
+  # ---------------------------------------------------------------------------
+  - name: mce.rules
+    rules:
+
+      # MCEUncorrectedError
+      # Threshold rationale: Uncorrected machine check events represent hardware
+      # errors that the processor could not correct. These typically cause
+      # immediate kernel panic (if action=panic in /etc/mcelog.conf) or silent
+      # corruption. Zero tolerance — for: 0m.
+      - alert: MCEUncorrectedError
+        expr: increase(mce_events_total{severity="uncorrected"}[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Uncorrected machine check error on {{ $labels.instance }}"
+          description: >
+            An uncorrected MCE was recorded (bank={{ $labels.bank }},
+            source={{ $labels.source }}). This indicates a processor, memory,
+            or interconnect fault that hardware could not correct. Check
+            /var/log/mcelog or rasdaemon logs immediately.
+            Runbook: docs/runbook.md#mceuncorrectederror
+
+      # MCEHighCorrectedRate
+      # Threshold rationale: Corrected MCEs (CMCI) are normal at low rates.
+      # >50/hour indicates elevated processor or memory stress. ARM systems
+      # expose these via GHES/APEI. The 10m for: window filters transient
+      # bursts from DIMM scrubbing or CPU throttling events.
+      - alert: MCEHighCorrectedRate
+        expr: rate(mce_events_total{severity="corrected"}[1h]) * 3600 > 50
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High corrected machine check rate on {{ $labels.instance }}"
+          description: >
+            Corrected MCEs on {{ $labels.instance }} are occurring at
+            {{ $value | humanize }}/hour (bank={{ $labels.bank }}).
+            Monitor for escalation to uncorrected errors.
+            Runbook: docs/runbook.md#mcehighcorrectedrate
+
+  # ---------------------------------------------------------------------------
+  # Exporter health — monitor the monitoring
+  # ---------------------------------------------------------------------------
+  - name: exporter.rules
+    rules:
+
+      # HWFaultExporterDown
+      # Threshold rationale: If the exporter is missing from Prometheus for
+      # 2 minutes, either the process crashed or the node is unreachable.
+      # 2m avoids false alerts during rolling restarts (which typically
+      # complete in <60 seconds with systemd watchdog).
+      - alert: HWFaultExporterDown
+        expr: absent(hw_fault_exporter_uptime_seconds)
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Hardware fault exporter is down on {{ $labels.instance }}"
+          description: >
+            hw_fault_exporter_uptime_seconds has been absent for >2 minutes.
+            The exporter may have crashed or the node may be unreachable.
+            Check: systemctl status hw-fault-exporter
+            Check: ss -tlnp | grep 9100
+            Runbook: docs/runbook.md#hwfaultexporterdown
+
+      # HWFaultExporterScrapeErrors
+      # Threshold rationale: >5 scrape errors in 10 minutes indicates a
+      # systemic issue (e.g., sysfs permissions changed, kernel module unloaded)
+      # rather than a transient read failure. Single errors during scrape
+      # are expected occasionally and do not warrant paging.
+      - alert: HWFaultExporterScrapeErrors
+        expr: increase(hw_fault_exporter_scrape_errors_total[10m]) > 5
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Hardware fault exporter has elevated scrape errors on {{ $labels.instance }}"
+          description: >
+            The exporter has recorded >5 sysfs scrape errors in the last 10
+            minutes. Metrics may be incomplete. Possible causes: EDAC module
+            unloaded, sysfs path permissions changed, AER not enabled in BIOS.
+            Check: journalctl -u hw-fault-exporter --since "10 minutes ago"
+            Runbook: docs/runbook.md#hwfaultexporterscrapeerrors

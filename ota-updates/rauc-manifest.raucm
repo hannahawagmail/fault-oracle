@@ -1,0 +1,79 @@
+# SPDX-License-Identifier: Apache-2.0
+# rauc-manifest.raucm — RAUC bundle manifest
+#
+# This file is named manifest.raucm inside the bundle directory before signing.
+# After rauc bundle ... is run, it is embedded inside the .raucb squashfs archive.
+#
+# RAUC validates this manifest against /etc/rauc/system.conf on the target device:
+#   1. compatible= must match system.conf [system] compatible=
+#   2. Image filenames must exist inside the squashfs
+#   3. SHA-256 checksums must match the actual image bytes
+#   4. The CMS signature over this manifest must verify against /etc/rauc/keyring.pem
+#
+# Field reference: https://rauc.readthedocs.io/en/latest/reference.html#manifest
+
+[update]
+# compatible= must be an exact string match with the target device's system.conf.
+# This prevents installing an image for hardware revision 2 onto revision 1.
+# Use a naming convention that encodes: arch + soc-family + board-revision.
+compatible=arm64-soc-v1
+
+# version= is a human-readable version string. RAUC does not enforce ordering;
+# it is for logging and status display only. Use semver or date-based versioning.
+# RAUC exposes this as RAUC_BUNDLE_VERSION to hook scripts.
+version=2.1.0
+
+# description= is a free-text summary shown in `rauc status` and DBus output.
+# Keep it under 80 chars for clean terminal display. Include the ticket/PR ref.
+description=Security patch + EDAC driver update (CVE-2026-1234, PR#892)
+
+# build= is an ISO 8601 timestamp of when this bundle was created.
+# Populated automatically by CI; useful for debugging which pipeline run
+# produced a particular bundle installed on a device.
+build=2026-06-05T00:00:00Z
+
+[image.rootfs]
+# The [image.<slot-class>] section name must match a slot class defined in
+# system.conf. "rootfs" maps to [slot.rootfs.0] and [slot.rootfs.1].
+# RAUC selects the inactive rootfs slot at install time.
+
+# filename= is the path of the image file *inside* the squashfs bundle archive.
+# It must be a relative path (relative to the squashfs root).
+filename=rootfs.ext4.img
+
+# checksum= is the SHA-256 hash of the raw image file.
+# Compute with: sha256sum rootfs.ext4.img | awk '{print $1}'
+# RAUC verifies this after writing the image to the slot device to detect
+# write errors or storage corruption (bit-flip during write).
+# Replace this placeholder with the actual hash at bundle build time.
+checksum=a3f1c2d4e5b6789012345678901234567890abcdef1234567890abcdef12345678
+
+# size= is the exact byte count of the image file.
+# Compute with: stat --format=%s rootfs.ext4.img
+# RAUC uses this to pre-check that the target partition is large enough
+# before beginning the write, preventing a partial write on undersized storage.
+size=1073741824
+
+# adaptive= enables RAUC's adaptive update feature (requires RAUC >= 1.5).
+# With adaptive=block-hash-index, RAUC reads the current slot content and
+# only writes blocks that differ — effectively a delta update without a
+# separate delta tool. Requires the slot to be readable (not encrypted).
+# Uncomment to enable:
+# adaptive=block-hash-index
+
+[image.boot]
+# The boot slot receives the kernel, DTB, and U-Boot environment image.
+# All boards in the fleet share the same boot image if the SoC is the same.
+filename=boot.vfat.img
+
+# Replace with actual SHA-256 of boot.vfat.img:
+checksum=b7e8d9f0a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcd12
+
+# Replace with actual byte count of boot.vfat.img:
+size=67108864
+
+# hooks= lists which per-image hook scripts to invoke for this image.
+# install: called instead of RAUC's default dd/mount copy if defined.
+# post-install: called after this specific image is written.
+# Leave blank to use RAUC's built-in write logic (recommended for ext4/vfat).
+# hooks=install;post-install

@@ -1,0 +1,183 @@
+{
+  "title": "Hardware Fault Resilience — SLI/SLO (Extended)",
+  "uid": "hw-sli-slo-ext",
+  "tags": ["slo", "sli", "hardware", "fault-resilience"],
+  "refresh": "1m",
+  "time": {"from": "now-30d", "to": "now"},
+  "templating": {
+    "list": [
+      {
+        "name": "node",
+        "type": "query",
+        "datasource": "Prometheus",
+        "query": "label_values(fault_resilience_collector_up, instance)",
+        "multi": true,
+        "includeAll": true
+      }
+    ]
+  },
+  "panels": [
+    {
+      "title": "SLI Definition",
+      "type": "text",
+      "gridPos": {"h": 3, "w": 24, "x": 0, "y": 0},
+      "options": {
+        "content": "**SLI**: `avg(fault_resilience_collector_up)` over the measurement window — fraction of time all collectors are healthy.\n\n**SLO target**: 99.5% over 30 days (error budget: 3h 36m per month).\n\n**Burn rate thresholds**: Fast (1h+6h) >14.4 → page | Moderate (6h) >6 → ticket | Slow (3d) >1 → inform",
+        "mode": "markdown"
+      }
+    },
+    {
+      "title": "30-Day Availability %",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 3},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {"steps": [
+            {"value": 0,     "color": "red"},
+            {"value": 0.99,  "color": "yellow"},
+            {"value": 0.995, "color": "green"}
+          ]},
+          "mappings": []
+        }
+      },
+      "targets": [{
+        "expr": "avg_over_time(avg(fault_resilience_collector_up{instance=~\"$node\"})[30d:1m])",
+        "legendFormat": "30d availability",
+        "refId": "A"
+      }],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "orientation": "auto", "textMode": "value_and_name", "colorMode": "background"}
+    },
+    {
+      "title": "Error Budget Remaining",
+      "type": "gauge",
+      "datasource": "Prometheus",
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 3},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0, "max": 1,
+          "thresholds": {"steps": [
+            {"value": 0,    "color": "red"},
+            {"value": 0.10, "color": "yellow"},
+            {"value": 0.50, "color": "green"}
+          ]}
+        }
+      },
+      "targets": [{
+        "expr": "slo:collector_up:error_budget_remaining",
+        "legendFormat": "Error budget",
+        "refId": "A"
+      }]
+    },
+    {
+      "title": "MTBF — Mean Time Between Failures (hours)",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 3},
+      "description": "Estimated mean hours between collector_up=0 events over 30 days.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h",
+          "thresholds": {"steps": [
+            {"value": 0,    "color": "red"},
+            {"value": 24,   "color": "yellow"},
+            {"value": 168,  "color": "green"}
+          ]}
+        }
+      },
+      "targets": [{
+        "expr": "720 / (1 + count_over_time(fault_resilience_collector_up{instance=~\"$node\"} == 0 [30d]))",
+        "legendFormat": "MTBF",
+        "refId": "A"
+      }],
+      "options": {"reduceOptions": {"calcs": ["mean"]}}
+    },
+    {
+      "title": "MTTR — Mean Time To Recovery (minutes)",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 3},
+      "description": "Estimated mean recovery time based on scrape interval and down event count.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "m",
+          "thresholds": {"steps": [
+            {"value": 0,  "color": "green"},
+            {"value": 5,  "color": "yellow"},
+            {"value": 30, "color": "red"}
+          ]}
+        }
+      },
+      "targets": [{
+        "expr": "(1 - avg_over_time(fault_resilience_collector_up{instance=~\"$node\"}[30d])) * 43200 / (1 + count_over_time(fault_resilience_collector_up{instance=~\"$node\"} == 0 [30d]))",
+        "legendFormat": "MTTR",
+        "refId": "A"
+      }],
+      "options": {"reduceOptions": {"calcs": ["mean"]}}
+    },
+    {
+      "title": "Burn Rate — Multi-Window",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 7},
+      "fieldConfig": {
+        "defaults": {"unit": "short"},
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "Fast (1h)"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]},
+          {"matcher": {"id": "byName", "options": "Moderate (6h)"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "orange"}}]},
+          {"matcher": {"id": "byName", "options": "Slow (3d)"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "yellow"}}]}
+        ]
+      },
+      "targets": [
+        {"expr": "slo:collector_up:burn_rate1h", "legendFormat": "Fast (1h)", "refId": "A"},
+        {"expr": "slo:collector_up:burn_rate6h", "legendFormat": "Moderate (6h)", "refId": "B"},
+        {"expr": "slo:collector_up:burn_rate3d", "legendFormat": "Slow (3d)", "refId": "C"},
+        {"expr": "14.4", "legendFormat": "Page threshold (14.4×)", "refId": "D"},
+        {"expr": "6",    "legendFormat": "Ticket threshold (6×)", "refId": "E"},
+        {"expr": "1",    "legendFormat": "Baseline (1×)", "refId": "F"}
+      ]
+    },
+    {
+      "title": "Per-Node 30d Availability Heatmap",
+      "type": "heatmap",
+      "datasource": "Prometheus",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 15},
+      "description": "Each cell = 6-hour availability window per node. Green = 100%, red = outage.",
+      "targets": [{
+        "expr": "avg_over_time(fault_resilience_collector_up[6h])",
+        "legendFormat": "{{instance}}",
+        "refId": "A"
+      }],
+      "options": {
+        "calculate": false,
+        "color": {"scheme": "RdYlGn", "fill": "opacity", "mode": "scheme"},
+        "yAxis": {"unit": "percentunit"}
+      }
+    },
+    {
+      "title": "Per-Collector 30d Availability Table",
+      "type": "table",
+      "datasource": "Prometheus",
+      "gridPos": {"h": 6, "w": 24, "x": 0, "y": 23},
+      "targets": [{
+        "expr": "avg_over_time(fault_resilience_collector_up{instance=~\"$node\"}[30d])",
+        "legendFormat": "{{collector}} @ {{instance}}",
+        "refId": "A",
+        "instant": true
+      }],
+      "transformations": [
+        {"id": "organize", "options": {"renameByName": {"Value": "30d Availability", "collector": "Collector", "instance": "Node"}}},
+        {"id": "sortBy", "options": {"fields": [{"desc": true, "displayName": "30d Availability"}]}}
+      ],
+      "fieldConfig": {
+        "overrides": [{"matcher": {"id": "byName", "options": "30d Availability"}, "properties": [
+          {"id": "unit", "value": "percentunit"},
+          {"id": "thresholds", "value": {"steps": [{"value": 0, "color": "red"}, {"value": 0.99, "color": "yellow"}, {"value": 0.995, "color": "green"}]}},
+          {"id": "custom.displayMode", "value": "color-background"}
+        ]}]
+      }
+    }
+  ]
+}

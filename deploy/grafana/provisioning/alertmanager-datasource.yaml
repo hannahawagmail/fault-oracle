@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: Apache-2.0
+# Grafana datasource provisioning for Alertmanager
+# Place in /etc/grafana/provisioning/datasources/
+apiVersion: 1
+
+datasources:
+  - name: Alertmanager
+    type: alertmanager
+    uid: hw-alertmanager
+    url: http://alertmanager.monitoring.svc:9093
+    access: proxy
+    jsonData:
+      implementation: prometheus
+      handleGrafanaManagedAlerts: false
+    version: 1
+    editable: false
+
+  - name: Prometheus
+    type: prometheus
+    uid: hw-prometheus
+    url: http://prometheus.monitoring.svc:9090
+    access: proxy
+    isDefault: true
+    jsonData:
+      scrapeInterval: "15s"
+      httpMethod: POST
+    version: 1
+    editable: false
+
+  - name: Loki
+    type: loki
+    uid: hw-loki
+    url: http://loki.monitoring.svc:3100
+    access: proxy
+    jsonData:
+      derivedFields:
+        - datasourceUid: hw-prometheus
+          matcherRegex: "collector=(\\w+)"
+          name: Collector
+          url: "/explore?left={\"datasource\":\"hw-prometheus\",\"queries\":[{\"expr\":\"fault_resilience_collector_up{collector=\\\"$${__value.raw}\\\"}\"}"
+    version: 1
+    editable: false

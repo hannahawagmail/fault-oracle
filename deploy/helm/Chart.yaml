@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: v2
+name: hw-fault-exporter
+description: >
+  Prometheus exporter for ARM Linux hardware fault counters
+  (EDAC correctable/uncorrectable errors, PCIe AER, MCE/APEI).
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - arm
+  - edac
+  - prometheus
+  - hardware
+  - fault-resilience
+home: https://github.com/hanna-hawa/fault-oracle
+sources:
+  - https://github.com/hanna-hawa/fault-oracle
+maintainers:
+  - name: Hanna Hawa
+    email: hanna.hawa@gmail.com

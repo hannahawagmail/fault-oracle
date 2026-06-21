@@ -1,0 +1,123 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# deploy/k8s/daemonset.yaml
+#
+# Deploys hw-fault-exporter as a DaemonSet so every node in the cluster
+# exposes its hardware fault counters to Prometheus.
+#
+# Prerequisites:
+#   kubectl apply -f deploy/k8s/serviceaccount.yaml
+#   kubectl apply -f deploy/k8s/daemonset.yaml
+#   kubectl apply -f deploy/k8s/service.yaml
+#
+# Prometheus scrape config: add deploy/k8s/servicemonitor.yaml if using the
+# Prometheus Operator; otherwise configure a static scrape job manually.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: hw-fault-exporter
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: hw-fault-exporter
+    app.kubernetes.io/component: metrics
+    app.kubernetes.io/part-of: fault-oracle
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hw-fault-exporter
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hw-fault-exporter
+        app.kubernetes.io/component: metrics
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9101"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: hw-fault-exporter
+      # Run on every node including control-plane nodes
+      tolerations:
+        - operator: Exists
+      hostPID: false
+      hostNetwork: false
+      # Required to read /sys/devices/system/edac and /sys/bus/pci
+      hostIPC: false
+      containers:
+        - name: hw-fault-exporter
+          image: ghcr.io/hanna-hawa/fault-oracle/hw-fault-exporter:latest  # pin to SHA in production
+          imagePullPolicy: IfNotPresent
+          args:
+            - --listen-addr=:9101
+            - --log-level=info
+          ports:
+            - name: metrics
+              containerPort: 9101
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: metrics
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 2
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: sys
+              mountPath: /sys
+              readOnly: true
+      volumes:
+        - name: sys
+          hostPath:
+            path: /sys
+            type: Directory
+      nodeSelector:
+        kubernetes.io/arch: arm64
+
+---
+# Patch: add TLS secret volume + mount to the DaemonSet above.
+# Merge these sections into the existing daemonset.yaml spec:
+#
+# spec.template.spec.volumes:
+#   - name: tls-certs
+#     secret:
+#       secretName: hw-fault-exporter-tls
+#       defaultMode: 0400
+#
+# spec.template.spec.containers[0].volumeMounts:
+#   - name: tls-certs
+#     mountPath: /etc/hw-fault-exporter/tls
+#     readOnly: true
+#
+# spec.template.spec.containers[0].args (add):
+#   - --tls-cert=/etc/hw-fault-exporter/tls/server.crt
+#   - --tls-key=/etc/hw-fault-exporter/tls/server.key
+#   - --tls-ca=/etc/hw-fault-exporter/tls/ca.crt

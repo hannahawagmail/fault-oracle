@@ -1,0 +1,91 @@
+# SPDX-License-Identifier: Apache-2.0
+# dpu-fault-exporter.service — Systemd unit for hw-fault-exporter on DPU
+#
+# Deploy this file to /etc/systemd/system/hw-fault-exporter.service on the
+# DPU ARM Linux OS (not the host). The binary listens on :9200 to avoid
+# conflict with the host exporter on :9100.
+#
+# Installation:
+#   install -m 0644 dpu-fault-exporter.service /etc/systemd/system/hw-fault-exporter.service
+#   systemctl daemon-reload
+#   systemctl enable --now hw-fault-exporter
+#
+# The exporter is started with --disable-aer because PCIe AER on DPU is managed
+# by DPU firmware (not exposed via the standard /sys/bus/pci AER sysfs paths
+# that the host exporter uses). Enabling host-side AER collection on the DPU
+# would either produce empty metrics or erroneously double-count events already
+# reported by the host exporter via the host's PCIe root complex.
+
+[Unit]
+Description=Hardware Fault Exporter — DPU Control Plane
+Documentation=https://github.com/hanna-hawa/arm-linux-fault-resilience
+After=network-online.target
+Wants=network-online.target
+# Ensure OvS is up before starting — exporter may expose OvS-related metrics
+# in future versions; this ordering also prevents race at boot.
+After=openvswitch-switch.service
+
+[Service]
+Type=notify
+# --listen-addr :9200  avoids conflict with host exporter at :9100
+# --sysfs-root /sys    standard sysfs path (same tree on DPU and host)
+# --disable-aer        DPU PCIe AER is firmware-managed, not exposed via sysfs
+# --log-level info     structured JSON logging; use debug for troubleshooting
+ExecStart=/opt/hw-fault-exporter/hw-fault-exporter \
+    --listen-addr :9200 \
+    --sysfs-root /sys \
+    --disable-aer \
+    --log-level info
+
+# Systemd watchdog: exporter must call sd_notify(WATCHDOG=1) within 60s.
+# If it fails to do so (deadlock, hang), systemd restarts it automatically.
+# The exporter binary supports WatchdogSec via the sd_notify protocol.
+WatchdogSec=60s
+
+# Restart policy: always restart on failure, with 10s backoff.
+# on-failure: restart on exit code != 0, signal termination, or watchdog expiry.
+Restart=on-failure
+RestartSec=10s
+
+# OOM priority: DPU ARM Linux is memory-constrained (typically 1-32GB shared
+# with packet buffers). Score -900 makes this process nearly immune to OOM
+# kill — network policy enforcement must survive memory pressure events.
+OOMScoreAdjust=-900
+
+# Run as nobody to reduce attack surface. The exporter only reads /sys
+# (world-readable) and binds a port > 1024 (no CAP_NET_BIND_SERVICE needed).
+User=nobody
+Group=nogroup
+
+# Security hardening: restrict filesystem access
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/sys/devices/system/edac
+ReadOnlyPaths=/sys/bus/pci
+PrivateTmp=true
+NoNewPrivileges=true
+
+# DPU ARM Linux may have a read-only root filesystem. The exporter does not
+# need write access to any persistent paths.
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+# Resource limits: exporter is lightweight on DPU ARM cores.
+# Limit to 1 CPU (out of 8-16 available) and 256MB VIRT.
+CPUQuota=100%
+MemoryMax=256M
+TasksMax=64
+
+# Logging: route to systemd journal, which can be forwarded to host monitoring.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hw-fault-exporter
+
+# Environment: disable CGo for a fully static binary (already built that way,
+# but this prevents accidental dynamic linking if the binary is rebuilt).
+Environment=GOTRACEBACK=crash
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,203 @@
+{
+  "__inputs": [],
+  "__requires": [
+    {"type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.0.0"},
+    {"type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0"}
+  ],
+  "panels": [
+    {
+      "id": 50,
+      "title": "NIC Throughput — RX (bytes/s)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": {"lineWidth": 1, "fillOpacity": 10}
+        }
+      },
+      "targets": [
+        {
+          "expr": "rate(smartnic_rx_bytes_total{job=\"hw-fault-exporter\", node=~\"$node\"}[5m])",
+          "legendFormat": "{{node}} / {{iface}}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "tooltip": {"mode": "multi"},
+        "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"]}
+      }
+    },
+    {
+      "id": 51,
+      "title": "NIC Throughput — TX (bytes/s)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": {"lineWidth": 1, "fillOpacity": 10}
+        }
+      },
+      "targets": [
+        {
+          "expr": "rate(smartnic_tx_bytes_total{job=\"hw-fault-exporter\", node=~\"$node\"}[5m])",
+          "legendFormat": "{{node}} / {{iface}}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "tooltip": {"mode": "multi"},
+        "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"]}
+      }
+    },
+    {
+      "id": 52,
+      "title": "NIC Error Rate (errors/s)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {"lineWidth": 1},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 1},
+              {"color": "red", "value": 10}
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "rate(smartnic_rx_errors_total{job=\"hw-fault-exporter\", node=~\"$node\"}[5m])",
+          "legendFormat": "{{node}} / {{iface}} RX",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(smartnic_tx_errors_total{job=\"hw-fault-exporter\", node=~\"$node\"}[5m])",
+          "legendFormat": "{{node}} / {{iface}} TX",
+          "refId": "B"
+        }
+      ],
+      "options": {
+        "tooltip": {"mode": "multi"},
+        "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"]}
+      }
+    },
+    {
+      "id": 53,
+      "title": "NIC Drop Rate (drops/s)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {"lineWidth": 1}
+        }
+      },
+      "targets": [
+        {
+          "expr": "rate(smartnic_rx_dropped_total{job=\"hw-fault-exporter\", node=~\"$node\"}[5m])",
+          "legendFormat": "{{node}} / {{iface}} RX drop",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(smartnic_tx_dropped_total{job=\"hw-fault-exporter\", node=~\"$node\"}[5m])",
+          "legendFormat": "{{node}} / {{iface}} TX drop",
+          "refId": "B"
+        }
+      ],
+      "options": {
+        "tooltip": {"mode": "multi"},
+        "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"]}
+      }
+    },
+    {
+      "id": 54,
+      "title": "Link State",
+      "type": "table",
+      "gridPos": {"h": 6, "w": 12, "x": 0, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "targets": [
+        {
+          "expr": "smartnic_link_up{job=\"hw-fault-exporter\", node=~\"$node\"}",
+          "refId": "A",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {"id": "labelsToFields", "options": {}},
+        {"id": "organize", "options": {"renameByName": {"node": "Node", "iface": "Interface", "operstate": "State"}}}
+      ]
+    },
+    {
+      "id": 55,
+      "title": "Link Speed (Mbps)",
+      "type": "table",
+      "gridPos": {"h": 6, "w": 12, "x": 12, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "targets": [
+        {
+          "expr": "smartnic_link_speed_mbps{job=\"hw-fault-exporter\", node=~\"$node\"}",
+          "refId": "A",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {"id": "labelsToFields", "options": {}},
+        {"id": "organize", "options": {"renameByName": {"node": "Node", "iface": "Interface"}}}
+      ]
+    },
+    {
+      "id": 56,
+      "title": "SmartNIC Collector Health",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 22},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {"mode": "absolute", "steps": [{"color": "red"}, {"color": "green", "value": 1}]}
+        }
+      },
+      "targets": [
+        {
+          "expr": "fault_resilience_collector_up{job=\"hw-fault-exporter\", collector=\"smartnic\", node=~\"$node\"}",
+          "legendFormat": "{{node}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background"}
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "pluginId": "prometheus",
+        "label": "Datasource"
+      },
+      {
+        "name": "node",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "${datasource}"},
+        "query": "label_values(smartnic_link_up{job=\"hw-fault-exporter\"}, node)",
+        "label": "Node",
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "refresh": 2
+      }
+    ]
+  }
+}

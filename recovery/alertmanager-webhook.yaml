@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: Apache-2.0
+# recovery/alertmanager-webhook.yaml — Alertmanager receiver config snippet.
+# Merge into your alertmanager.yaml receivers section.
+#
+# The webhook-server listens on :9095/webhook and routes alerts to handlers.
+
+receivers:
+  - name: hw-fault-recovery
+    webhook_configs:
+      - url: "http://hw-fault-recovery.monitoring.svc:9095/webhook"
+        send_resolved: false   # handlers only run on firing
+        http_config:
+          follow_redirects: false
+        max_alerts: 10

@@ -1,0 +1,130 @@
+{
+  "title": "Fleet Hardware Fault Overview",
+  "uid": "hw-fault-fleet",
+  "tags": ["fleet", "fault-resilience", "edac"],
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 70, "title": "Fleet CE Rate (all nodes, stacked)", "type": "timeseries",
+      "gridPos": {"h": 8, "w": 16, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {"unit": "short", "custom": {"lineWidth": 1, "fillOpacity": 15, "stacking": {"mode": "normal"}}}
+      },
+      "targets": [{
+        "expr": "sum by (node) (edac:correctable_errors:rate5m{job=\"hw-fault-exporter\"})",
+        "legendFormat": "{{node}}", "refId": "A"
+      }],
+      "options": {"tooltip": {"mode": "multi"}, "legend": {"displayMode": "table", "placement": "right", "calcs": ["mean", "max"]}}
+    },
+    {
+      "id": 71, "title": "Nodes In CE Storm", "type": "stat",
+      "gridPos": {"h": 4, "w": 4, "x": 16, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green"}, {"color": "red", "value": 1}]},
+          "unit": "short"
+        }
+      },
+      "targets": [{
+        "expr": "edac:fleet_nodes_in_storm{job=\"hw-fault-exporter\"}",
+        "refId": "A", "instant": true
+      }],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "none", "text": {"titleSize": 14}}
+    },
+    {
+      "id": 72, "title": "Nodes With UE (24h)", "type": "stat",
+      "gridPos": {"h": 4, "w": 4, "x": 16, "y": 4},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green"}, {"color": "red", "value": 1}]},
+          "unit": "short"
+        }
+      },
+      "targets": [{
+        "expr": "edac:fleet_nodes_with_ue_24h{job=\"hw-fault-exporter\"}",
+        "refId": "A", "instant": true
+      }],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "none"}
+    },
+    {
+      "id": 73, "title": "Top 5 Noisiest Nodes (CE/s avg 5m)", "type": "table",
+      "gridPos": {"h": 8, "w": 10, "x": 0, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "targets": [{
+        "expr": "topk(5, sum by (node) (edac:correctable_errors:rate5m{job=\"hw-fault-exporter\"}))",
+        "refId": "A", "instant": true, "format": "table"
+      }],
+      "transformations": [
+        {"id": "labelsToFields", "options": {}},
+        {"id": "organize", "options": {"renameByName": {"node": "Node", "Value": "CE/s (5m avg)"}}}
+      ],
+      "fieldConfig": {
+        "overrides": [{"matcher": {"id": "byName", "options": "CE/s (5m avg)"}, "properties": [
+          {"id": "custom.displayMode", "value": "color-background"},
+          {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "green"}, {"color": "yellow", "value": 0.1}, {"color": "red", "value": 1}]}}
+        ]}]
+      }
+    },
+    {
+      "id": 74, "title": "UE Event Heatmap (by node, 24h)", "type": "heatmap",
+      "gridPos": {"h": 8, "w": 14, "x": 10, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "targets": [{
+        "expr": "sum by (node) (increase(edac_uncorrectable_errors_total{job=\"hw-fault-exporter\"}[1h]))",
+        "legendFormat": "{{node}}", "refId": "A"
+      }],
+      "options": {"calculate": false, "yAxis": {"unit": "short"}, "color": {"scheme": "Reds", "mode": "scheme"}}
+    },
+    {
+      "id": 75, "title": "Collector Health Matrix", "type": "table",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "targets": [{
+        "expr": "fault_resilience_collector_up{job=\"hw-fault-exporter\"}",
+        "refId": "A", "instant": true, "format": "table"
+      }],
+      "transformations": [
+        {"id": "labelsToFields", "options": {}},
+        {"id": "organize", "options": {"renameByName": {"node": "Node", "collector": "Collector", "Value": "Up"}}}
+      ],
+      "fieldConfig": {
+        "overrides": [{"matcher": {"id": "byName", "options": "Up"}, "properties": [
+          {"id": "mappings", "value": [{"type": "value", "options": {"1": {"text": "UP", "color": "green"}, "0": {"text": "DOWN", "color": "red"}}}]},
+          {"id": "custom.displayMode", "value": "color-text"}
+        ]}]
+      }
+    },
+    {
+      "id": 76, "title": "Fleet CE Count (nodes with CE > 0)", "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green"}, {"color": "yellow", "value": 1}, {"color": "red", "value": 5}]},
+          "unit": "short"
+        }
+      },
+      "targets": [{
+        "expr": "edac:fleet_nodes_with_ce{job=\"hw-fault-exporter\"}",
+        "refId": "A", "instant": true
+      }],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "none"}
+    },
+    {
+      "id": 77, "title": "Active Alerts (Alertmanager)", "type": "table",
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 16},
+      "datasource": {"type": "alertmanager", "uid": "${alertmanager}"},
+      "targets": [{"refId": "A"}],
+      "options": {"showHeader": true}
+    }
+  ],
+  "templating": {
+    "list": [
+      {"name": "datasource", "type": "datasource", "pluginId": "prometheus", "label": "Prometheus"},
+      {"name": "alertmanager", "type": "datasource", "pluginId": "alertmanager", "label": "Alertmanager"}
+    ]
+  }
+}

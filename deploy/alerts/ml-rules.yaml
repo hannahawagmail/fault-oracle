@@ -1,0 +1,75 @@
+# SPDX-License-Identifier: Apache-2.0
+# ML-based failure prediction alert rules
+groups:
+  - name: dimm_failure_prediction
+    interval: 5m
+    rules:
+      - alert: DIMMFailureImminent
+        expr: failure_probability_7d > 0.8
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "DIMM failure imminent on {{ $labels.instance }} mc{{ $labels.mc }}"
+          description: >
+            Prophet model predicts {{ $value | humanizePercentage }} probability of
+            DIMM failure within 7 days. Immediate replacement recommended.
+            Run: edac-util -s 1 && dmidecode -t 17 | grep -A5 'Bank Locator'
+          runbook_url: "https://wiki.internal/runbooks/dimm-replacement"
+
+      - alert: DIMMFailureWarning
+        expr: failure_probability_7d > 0.5
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "DIMM degradation warning on {{ $labels.instance }} mc{{ $labels.mc }}"
+          description: >
+            {{ $value | humanizePercentage }} failure probability (7-day).
+            Schedule replacement within the next maintenance window.
+
+      - alert: DIMMSurvivalCohortRisk
+        expr: dimm_survival_probability{days="90"} < 0.5
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "DIMM cohort {{ $labels.cohort }} below 50% survival at 90 days"
+          description: >
+            Fleet-level survival curve shows this cohort has less than 50%
+            probability of surviving 90 days. Proactive bulk replacement advised.
+
+      - alert: MLModelStale
+        expr: ml_model_age_hours > 48
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "ML model stale ({{ $value | humanize }}h) on {{ $labels.instance }}"
+          description: >
+            The Prophet forecast model has not been retrained in {{ $value | humanize }} hours.
+            Check if ce-forecaster.timer is running: systemctl status ce-forecaster.timer
+
+      - alert: EBPFCollectorDown
+        expr: fault_resilience_collector_up{collector="ebpf_edac"} == 0
+        for: 5m
+        labels:
+          severity: info
+        annotations:
+          summary: "eBPF EDAC collector unavailable on {{ $labels.instance }}"
+          description: >
+            eBPF tracepoints not attached (kernel < 5.8, no BTF, or missing CAP_BPF).
+            Falling back to sysfs polling. Check: ls /sys/kernel/btf/vmlinux
+
+      - alert: EBPFMissedCEBurst
+        expr: >
+          (rate(ebpf_edac_ce_total[5m]) - rate(edac_correctable_errors_total[5m])) > 2
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "eBPF capturing more CEs than sysfs on {{ $labels.instance }}"
+          description: >
+            eBPF collector is seeing {{ $value | humanize }} more CE/s than sysfs polling.
+            This is expected during high-rate bursts between scrape intervals.
+            Burst peak: check ebpf_edac_ce_total for the raw count.
