@@ -1,0 +1,39 @@
+name: Hardware compatibility report
+description: Report test results on a new board to update the compatibility matrix
+labels: ["compatibility", "documentation"]
+body:
+  - type: input
+    id: soc
+    attributes:
+      label: SoC / board
+      placeholder: "Raspberry Pi 4B (BCM2711)"
+    validations:
+      required: true
+
+  - type: input
+    id: kernel
+    attributes:
+      label: Kernel version tested
+      placeholder: "6.6.20-v8+"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: results
+    attributes:
+      label: Feature test results (check all that pass)
+      options:
+        - label: EDAC CE counting
+        - label: EDAC UE counting
+        - label: Hardware watchdog
+        - label: OTA A/B update
+        - label: PCIe AER
+        - label: Network failover monitor
+        - label: Prometheus exporter scrapes successfully
+        - label: Grafana dashboard renders
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes / caveats
+      description: Anything that required special configuration or workarounds.

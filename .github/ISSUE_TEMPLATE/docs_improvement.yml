@@ -1,0 +1,23 @@
+name: Documentation improvement
+description: Report missing, incorrect, or unclear documentation
+labels: ["documentation"]
+body:
+  - type: input
+    id: file
+    attributes:
+      label: File or section
+      placeholder: "docs/runbook.md — DIMM replacement section"
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is wrong or missing?
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested improvement

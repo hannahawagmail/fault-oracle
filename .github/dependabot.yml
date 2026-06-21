@@ -1,0 +1,70 @@
+# SPDX-License-Identifier: Apache-2.0
+# dependabot.yml — automated dependency update configuration
+# Docs: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
+
+version: 2
+updates:
+
+  # Go modules (exporter/)
+  - package-ecosystem: "gomod"
+    directory: "/exporter"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "go"]
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      prometheus:
+        patterns: ["github.com/prometheus/*"]
+      zap:
+        patterns: ["go.uber.org/*"]
+
+  # Python packages (tests/requirements.txt)
+  - package-ecosystem: "pip"
+    directory: "/tests"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "python"]
+    commit-message:
+      prefix: "chore(deps)"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 10
+    labels: ["dependencies", "ci"]
+    commit-message:
+      prefix: "ci(deps)"
+    groups:
+      actions-core:
+        patterns: ["actions/*"]
+      docker:
+        patterns: ["docker/*"]
+      codecov:
+        patterns: ["codecov/*"]
+
+  # Docker base images (exporter/Dockerfile)
+  - package-ecosystem: "docker"
+    directory: "/exporter"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "docker"]
+    commit-message:
+      prefix: "chore(deps)"

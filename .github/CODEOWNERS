@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0
+# CODEOWNERS — default reviewers for pull requests
+
+# Global fallback
+* @hanna-hawa
+
+# Kernel module
+/edac-reference/ @hanna-hawa
+
+# Go exporter
+/exporter/ @hanna-hawa
+
+# CI configuration
+/.github/ @hanna-hawa
+/ci/ @hanna-hawa
+
+# Documentation
+/docs/ @hanna-hawa
+/dashboards/ @hanna-hawa

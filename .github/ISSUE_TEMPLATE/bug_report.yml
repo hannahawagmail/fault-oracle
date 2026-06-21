@@ -1,0 +1,76 @@
+name: Bug report
+description: Something is broken or behaves unexpectedly
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Fill in as much detail as you can.
+        **Remove any sensitive information** (hostnames, IPs, MAC addresses) before submitting.
+        Use `tools/anonymize_log.py` to strip identifying information from log excerpts.
+
+  - type: dropdown
+    id: module
+    attributes:
+      label: Affected module
+      options:
+        - replay (parse_edac_trace.py / replay_kernel_state.sh)
+        - exporter (Go Prometheus exporter)
+        - boot-resilience
+        - storage-integrity
+        - kernel-hardening
+        - network-resilience
+        - ota-updates
+        - fault-injection
+        - edac-reference (kernel module)
+        - smartnic
+        - ci / tooling
+        - documentation
+        - other
+    validations:
+      required: true
+
+  - type: input
+    id: board
+    attributes:
+      label: SoC / board
+      description: e.g. NXP i.MX8MP, Marvell OCTEON TX2, Ampere Altra, QEMU virt
+      placeholder: "QEMU ARM64 virt"
+
+  - type: input
+    id: kernel
+    attributes:
+      label: Linux kernel version
+      placeholder: "6.6.20"
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Clear description of the bug. Include exact error messages.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run `bash fault-injection/inject_edac_ce.sh --backend none`
+        2. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Anonymise with `python3 tools/anonymize_log.py kern.log` first.
+      render: text

@@ -1,0 +1,48 @@
+name: New board support
+description: Request or contribute support for a new SoC / board
+labels: ["board-support", "enhancement"]
+body:
+  - type: input
+    id: soc
+    attributes:
+      label: SoC name and vendor
+      placeholder: "NXP i.MX8MP"
+    validations:
+      required: true
+
+  - type: input
+    id: edac_driver
+    attributes:
+      label: EDAC kernel driver (if known)
+      placeholder: "imx_ddr"
+
+  - type: input
+    id: wdt_driver
+    attributes:
+      label: Watchdog kernel driver (if known)
+      placeholder: "imx2_wdt"
+
+  - type: checkboxes
+    id: features
+    attributes:
+      label: Features to support
+      options:
+        - label: EDAC CE/UE error counting
+        - label: Hardware watchdog
+        - label: OTA / A-B partition update
+        - label: PCIe AER
+        - label: Network failover
+        - label: Secure Boot chain
+
+  - type: textarea
+    id: references
+    attributes:
+      label: Relevant datasheets / kernel docs / upstream commits
+
+  - type: textarea
+    id: testing
+    attributes:
+      label: How will this be tested?
+      description: Describe hardware access or QEMU/emulation plan.
+    validations:
+      required: true
