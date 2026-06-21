@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: Apache-2.0
+[Unit]
+Description=rasdaemon Prometheus textfile exporter
+After=rasdaemon.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/lib/hw-fault-resilience/ras/rasdaemon-exporter.py
+User=node-exporter

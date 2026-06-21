@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: Apache-2.0
+[Unit]
+Description=Run rasdaemon Prometheus exporter every minute
+
+[Timer]
+OnCalendar=*:*:0/60
+AccuracySec=10s
+Persistent=true
+
+[Install]
+WantedBy=timers.target
