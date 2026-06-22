@@ -2,7 +2,7 @@
 # requirements.txt — Python test dependencies (pinned for reproducibility)
 # Install: pip install -r tests/requirements.txt
 pytest==8.0.2
-pytest-cov==4.1.0
+pytest-cov==7.1.0
 pytest-xdist==3.5.0
 hypothesis==6.98.0
 configparser==6.0.0
