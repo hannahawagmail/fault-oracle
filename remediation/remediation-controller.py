@@ -174,8 +174,31 @@ class KubeClient:  # pragma: no cover
         if self.ca_file and os.path.exists(self.ca_file):
             ctx.load_verify_locations(self.ca_file)
         else:
-            ctx.check_hostname = False
-            ctx.verify_mode = ssl.CERT_NONE
+            # This controller can patch (cordon/taint) any Node in the cluster.
+            # Talking to the API server without verifying its certificate would
+            # expose the ServiceAccount bearer token to a man-in-the-middle and
+            # allow forged API responses. A missing CA is therefore fatal, not a
+            # silent downgrade. Set INSECURE_SKIP_TLS_VERIFY=true only for local
+            # testing against a throwaway cluster.
+            if os.environ.get("INSECURE_SKIP_TLS_VERIFY", "").lower() in (
+                "true",
+                "1",
+                "yes",
+            ):
+                log.warning(
+                    "INSECURE_SKIP_TLS_VERIFY set — disabling Kubernetes API "
+                    "certificate verification. DO NOT use in production."
+                )
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+            else:
+                raise RuntimeError(
+                    "Kubernetes API CA certificate not found "
+                    f"(ca_file={self.ca_file!r}). Refusing to connect without "
+                    "TLS verification. Provide the in-cluster CA at "
+                    f"{_SA_CA_FILE} or set INSECURE_SKIP_TLS_VERIFY=true for "
+                    "local testing only."
+                )
         return ctx
 
     def _headers(self) -> dict:

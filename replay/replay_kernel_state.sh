@@ -115,8 +115,13 @@ INJECTED=0
 SKIPPED=0
 ERRORS=0
 
-for i in $(seq 0 $((EVENT_COUNT - 1))); do
-    EVENT=$(jq ".[$i]" "$EVENTS_FILE")
+# Parse the entire events file once into an array of compact JSON objects,
+# rather than re-reading and re-parsing the whole file for every event
+# (which is O(n^2) and slow on large CE-storm traces).
+mapfile -t EVENTS < <(jq -c '.[]' "$EVENTS_FILE")
+
+for i in "${!EVENTS[@]}"; do
+    EVENT="${EVENTS[$i]}"
 
     EVENT_TYPE=$(echo "$EVENT" | jq -r '.event_type')
     MONO_S=$(echo "$EVENT" | jq -r '.monotonic_s // 0')

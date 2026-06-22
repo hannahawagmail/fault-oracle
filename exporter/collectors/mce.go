@@ -53,7 +53,7 @@ type MCECollector struct {
 	mceAvailable   *prometheus.Desc
 	scrapeDuration *prometheus.Desc
 	scrapeErrors   *prometheus.Desc
-	collectorUp    *prometheus.Desc
+	// collectorUp uses the shared collectorUpDesc (see shared.go).
 }
 
 // mceEvent represents a parsed machine check event entry.
@@ -90,12 +90,6 @@ func NewMCECollector(opts Options) *MCECollector {
 			"Total sysfs read errors encountered by this collector.",
 			[]string{"collector"}, nil,
 		),
-		collectorUp: prometheus.NewDesc(
-			"fault_resilience_collector_up",
-			"1 if the collector subsystem is accessible in sysfs, 0 if absent.",
-			[]string{"collector"},
-			nil,
-		),
 	}
 }
 
@@ -105,7 +99,7 @@ func (c *MCECollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.mceAvailable
 	ch <- c.scrapeDuration
 	ch <- c.scrapeErrors
-	ch <- c.collectorUp
+	ch <- collectorUpDesc
 }
 
 // Collect implements prometheus.Collector.
@@ -151,7 +145,7 @@ func (c *MCECollector) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	ch <- prometheus.MustNewConstMetric(c.mceAvailable, prometheus.GaugeValue, available)
-	ch <- prometheus.MustNewConstMetric(c.collectorUp, prometheus.GaugeValue, available, "mce")
+	ch <- prometheus.MustNewConstMetric(collectorUpDesc, prometheus.GaugeValue, available, "mce")
 	emitSelf(ch, c.scrapeDuration, c.scrapeErrors, "mce", time.Since(start), errCount)
 }
 

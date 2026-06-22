@@ -170,6 +170,7 @@ func (c *EDACCollector) Collect(ch chan<- prometheus.Metric) {
 			c.opts.Logger.Debug("EDAC: cannot read ce_count", zap.String("mc", mcIdx), zap.Error(err))
 			errCount++
 		} else {
+			successCount++
 			ch <- prometheus.MustNewConstMetric(c.ctrlCETotal, prometheus.CounterValue,
 				float64(ctrlCE), mcEntry.Name())
 		}
@@ -179,6 +180,7 @@ func (c *EDACCollector) Collect(ch chan<- prometheus.Metric) {
 			c.opts.Logger.Debug("EDAC: cannot read ue_count", zap.String("mc", mcIdx), zap.Error(err))
 			errCount++
 		} else {
+			successCount++
 			ch <- prometheus.MustNewConstMetric(c.ctrlUETotal, prometheus.CounterValue,
 				float64(ctrlUE), mcEntry.Name())
 		}
@@ -209,6 +211,7 @@ func (c *EDACCollector) Collect(ch chan<- prometheus.Metric) {
 					zap.String("csrow", csrowIdx), zap.Error(err))
 				errCount++
 			} else {
+				successCount++
 				ch <- prometheus.MustNewConstMetric(c.ueTotal, prometheus.CounterValue,
 					float64(csrowUE), mcEntry.Name(), csrowIdx)
 			}
@@ -232,13 +235,21 @@ func (c *EDACCollector) Collect(ch chan<- prometheus.Metric) {
 					errCount++
 					continue
 				}
+				successCount++
 				ch <- prometheus.MustNewConstMetric(c.ceTotal, prometheus.CounterValue,
 					float64(chCE), mcEntry.Name(), csrowIdx, chIdx)
 			}
 		}
 	}
 
-	ch <- prometheus.MustNewConstMetric(collectorUpDesc, prometheus.GaugeValue, 1, "edac")
+	// Report the subsystem as up only when at least one counter file was read
+	// successfully. If the mc root exists but every file read failed (e.g.
+	// permission denied), collectorUp is 0 so the failure is visible.
+	upVal := 0.0
+	if successCount > 0 {
+		upVal = 1.0
+	}
+	ch <- prometheus.MustNewConstMetric(collectorUpDesc, prometheus.GaugeValue, upVal, "edac")
 	emitSelf(ch, c.scrapeDuration, c.scrapeErrors, "edac", time.Since(start), errCount)
 }
 

@@ -9,7 +9,7 @@
 
 [Unit]
 Description=Hardware Fault Prometheus Exporter
-Documentation=https://github.com/hanna-hawa/arm-linux-fault-resilience
+Documentation=https://github.com/hanna-hawa/fault-oracle
 After=network.target
 Wants=network.target
 

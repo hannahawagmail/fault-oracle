@@ -53,9 +53,9 @@ type CXLCollector struct {
 	opts        Options
 	correctable *prometheus.Desc
 	uncorrectable *prometheus.Desc
-	collectorUp *prometheus.Desc
 	scrapeTime  *prometheus.Desc
 	scrapeErrs  *prometheus.Desc
+	// collectorUp uses the shared collectorUpDesc (see shared.go).
 }
 
 // NewCXLCollector creates a new CXLCollector.
@@ -71,11 +71,6 @@ func NewCXLCollector(opts Options) *CXLCollector {
 			"cxl_uncorrectable_errors_total",
 			"Total CXL uncorrectable memory errors per device and error type.",
 			[]string{"device", "error_type"}, nil,
-		),
-		collectorUp: prometheus.NewDesc(
-			"fault_resilience_collector_up",
-			"1 if the collector subsystem is accessible in sysfs, 0 if absent.",
-			[]string{"collector"}, nil,
 		),
 		scrapeTime: prometheus.NewDesc(
 			"hw_fault_exporter_scrape_duration_seconds",
@@ -94,7 +89,7 @@ func NewCXLCollector(opts Options) *CXLCollector {
 func (c *CXLCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.correctable
 	ch <- c.uncorrectable
-	ch <- c.collectorUp
+	ch <- collectorUpDesc
 	ch <- c.scrapeTime
 	ch <- c.scrapeErrs
 }
@@ -108,7 +103,7 @@ func (c *CXLCollector) Collect(ch chan<- prometheus.Metric) {
 	devices, err := os.ReadDir(cxlRoot)
 	if err != nil {
 		c.opts.Logger.Warn("CXL: cannot read bus root", zap.String("path", cxlRoot), zap.Error(err))
-		ch <- prometheus.MustNewConstMetric(c.collectorUp, prometheus.GaugeValue, 0, "cxl")
+		ch <- prometheus.MustNewConstMetric(collectorUpDesc, prometheus.GaugeValue, 0, "cxl")
 		emitSelf(ch, c.scrapeTime, c.scrapeErrs, "cxl", time.Since(start), 1)
 		return
 	}
@@ -146,7 +141,7 @@ func (c *CXLCollector) Collect(ch chan<- prometheus.Metric) {
 		collected++
 	}
 
-	ch <- prometheus.MustNewConstMetric(c.collectorUp, prometheus.GaugeValue, 1, "cxl")
+	ch <- prometheus.MustNewConstMetric(collectorUpDesc, prometheus.GaugeValue, 1, "cxl")
 	emitSelf(ch, c.scrapeTime, c.scrapeErrs, "cxl", time.Since(start), errCount)
 	c.opts.Logger.Debug("CXL: collected", zap.Int("devices", collected), zap.Int("errors", errCount))
 }

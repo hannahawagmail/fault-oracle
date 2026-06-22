@@ -17,7 +17,8 @@ Output JSON schema (one object per event):
   {
     "seq": <int>,                  # event sequence number (0-based)
     "timestamp_str": "<string>",   # original timestamp string
-    "timestamp_ns": <int>,         # nanoseconds since epoch (estimated) or 0
+    "timestamp_ns": <int>,         # monotonic nanoseconds (monotonic_s × 1e9), or 0
+                                   # NOTE: kernel-monotonic since boot, NOT epoch.
     "monotonic_s": <float>,        # kernel monotonic time in seconds (if available)
     "event_type": "CE"|"UE"|"AER_CE"|"AER_UE"|"MCE",
     "subsystem": "EDAC"|"AER"|"MCE",
@@ -63,6 +64,8 @@ _log = logging.getLogger(__name__)
 class HardwareEvent:
     seq: int
     timestamp_str: str
+    # Monotonic nanoseconds since boot (monotonic_s × 1e9), NOT epoch time.
+    # 0 when no kernel monotonic timestamp was present in the source line.
     timestamp_ns: int
     monotonic_s: Optional[float]
     event_type: str

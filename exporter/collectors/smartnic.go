@@ -59,9 +59,9 @@ type SmartNICCollector struct {
 	descs       map[string]*prometheus.Desc
 	linkUp      *prometheus.Desc
 	linkSpeed   *prometheus.Desc
-	collectorUp *prometheus.Desc
 	scrapeTime  *prometheus.Desc
 	scrapeErrs  *prometheus.Desc
+	// collectorUp uses the shared collectorUpDesc (see shared.go).
 }
 
 // NewSmartNICCollector creates a new SmartNIC collector.
@@ -87,11 +87,6 @@ func NewSmartNICCollector(opts Options) *SmartNICCollector {
 			"Interface speed in Mbps (0 if unknown or link down).",
 			[]string{"iface"}, nil,
 		),
-		collectorUp: prometheus.NewDesc(
-			"fault_resilience_collector_up",
-			"1 if the collector subsystem is accessible in sysfs, 0 if absent.",
-			[]string{"collector"}, nil,
-		),
 		scrapeTime: prometheus.NewDesc(
 			"hw_fault_exporter_scrape_duration_seconds",
 			"Duration of the last scrape cycle for this collector.",
@@ -112,7 +107,7 @@ func (c *SmartNICCollector) Describe(ch chan<- *prometheus.Desc) {
 	}
 	ch <- c.linkUp
 	ch <- c.linkSpeed
-	ch <- c.collectorUp
+	ch <- collectorUpDesc
 	ch <- c.scrapeTime
 	ch <- c.scrapeErrs
 }
@@ -126,7 +121,7 @@ func (c *SmartNICCollector) Collect(ch chan<- prometheus.Metric) {
 	ifaces, err := os.ReadDir(netRoot)
 	if err != nil {
 		c.opts.Logger.Warn("SmartNIC: cannot read net root", zap.String("path", netRoot), zap.Error(err))
-		ch <- prometheus.MustNewConstMetric(c.collectorUp, prometheus.GaugeValue, 0, "smartnic")
+		ch <- prometheus.MustNewConstMetric(collectorUpDesc, prometheus.GaugeValue, 0, "smartnic")
 		emitSelf(ch, c.scrapeTime, c.scrapeErrs, "smartnic", time.Since(start), 1)
 		return
 	}
@@ -175,7 +170,7 @@ func (c *SmartNICCollector) Collect(ch chan<- prometheus.Metric) {
 		collected++
 	}
 
-	ch <- prometheus.MustNewConstMetric(c.collectorUp, prometheus.GaugeValue, 1, "smartnic")
+	ch <- prometheus.MustNewConstMetric(collectorUpDesc, prometheus.GaugeValue, 1, "smartnic")
 	emitSelf(ch, c.scrapeTime, c.scrapeErrs, "smartnic", time.Since(start), errCount)
 	c.opts.Logger.Debug("SmartNIC: collected", zap.Int("interfaces", collected), zap.Int("errors", errCount))
 }

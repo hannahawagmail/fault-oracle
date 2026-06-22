@@ -23,7 +23,7 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-EXPORTER_BINARY_URL="https://github.com/hanna-hawa/arm-linux-fault-resilience/releases/latest/download/hw-fault-exporter-linux-arm64"
+EXPORTER_BINARY_URL="https://github.com/hanna-hawa/fault-oracle/releases/latest/download/hw-fault-exporter-linux-arm64"
 EXPORTER_INSTALL_DIR="/opt/hw-fault-exporter"
 EXPORTER_BINARY="${EXPORTER_INSTALL_DIR}/hw-fault-exporter"
 SERVICE_NAME="hw-fault-exporter-dpu"

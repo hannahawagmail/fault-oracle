@@ -52,7 +52,8 @@ type AERCollector struct {
 	devicesTotal *prometheus.Desc
 	scrapeDuration *prometheus.Desc
 	scrapeErrors   *prometheus.Desc
-	collectorUp    *prometheus.Desc
+	// collectorUp uses the shared collectorUpDesc (see shared.go) to avoid a
+	// duplicate-descriptor panic when EDAC, AER and MCE are all registered.
 }
 
 // NewAERCollector creates a new AER collector.
@@ -87,12 +88,6 @@ func NewAERCollector(opts Options) *AERCollector {
 			"Total sysfs read errors encountered by this collector.",
 			[]string{"collector"}, nil,
 		),
-		collectorUp: prometheus.NewDesc(
-			"fault_resilience_collector_up",
-			"1 if the collector subsystem is accessible in sysfs, 0 if absent.",
-			[]string{"collector"},
-			nil,
-		),
 	}
 }
 
@@ -103,7 +98,7 @@ func (c *AERCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.devicesTotal
 	ch <- c.scrapeDuration
 	ch <- c.scrapeErrors
-	ch <- c.collectorUp
+	ch <- collectorUpDesc
 }
 
 // Collect implements prometheus.Collector.
@@ -118,7 +113,7 @@ func (c *AERCollector) Collect(ch chan<- prometheus.Metric) {
 		c.opts.Logger.Warn("AER: cannot read PCI devices root",
 			zap.String("path", devRoot), zap.Error(err))
 		errCount++
-		ch <- prometheus.MustNewConstMetric(c.collectorUp, prometheus.GaugeValue, 0, "aer")
+		ch <- prometheus.MustNewConstMetric(collectorUpDesc, prometheus.GaugeValue, 0, "aer")
 		emitSelf(ch, c.scrapeDuration, c.scrapeErrors, "aer", time.Since(start), errCount)
 		return
 	}
@@ -193,7 +188,7 @@ func (c *AERCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	ch <- prometheus.MustNewConstMetric(c.devicesTotal, prometheus.GaugeValue, float64(devCount))
-	ch <- prometheus.MustNewConstMetric(c.collectorUp, prometheus.GaugeValue, 1, "aer")
+	ch <- prometheus.MustNewConstMetric(collectorUpDesc, prometheus.GaugeValue, 1, "aer")
 	emitSelf(ch, c.scrapeDuration, c.scrapeErrors, "aer", time.Since(start), errCount)
 }
 

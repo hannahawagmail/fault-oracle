@@ -30,9 +30,9 @@ type CpufreqCollector struct {
 	minFreq     *prometheus.Desc
 	maxFreq     *prometheus.Desc
 	governor    *prometheus.Desc
-	collectorUp *prometheus.Desc
 	scrapeTime  *prometheus.Desc
 	scrapeErrs  *prometheus.Desc
+	// collectorUp uses the shared collectorUpDesc (see shared.go).
 }
 
 func NewCpufreqCollector(opts Options) *CpufreqCollector {
@@ -58,11 +58,6 @@ func NewCpufreqCollector(opts Options) *CpufreqCollector {
 			"1 if the specified governor is active on this CPU, 0 otherwise.",
 			[]string{"cpu", "governor"}, nil,
 		),
-		collectorUp: prometheus.NewDesc(
-			"fault_resilience_collector_up",
-			"1 if the collector subsystem is accessible in sysfs, 0 if absent.",
-			[]string{"collector"}, nil,
-		),
 		scrapeTime: prometheus.NewDesc("hw_fault_exporter_scrape_duration_seconds",
 			"Scrape duration.", []string{"collector"}, nil),
 		scrapeErrs: prometheus.NewDesc("hw_fault_exporter_scrape_errors_total",
@@ -75,7 +70,7 @@ func (c *CpufreqCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.minFreq
 	ch <- c.maxFreq
 	ch <- c.governor
-	ch <- c.collectorUp
+	ch <- collectorUpDesc
 	ch <- c.scrapeTime
 	ch <- c.scrapeErrs
 }
@@ -89,7 +84,7 @@ func (c *CpufreqCollector) Collect(ch chan<- prometheus.Metric) {
 	if err != nil {
 		c.opts.Logger.Warn("cpufreq: cannot read cpu root",
 			zap.String("path", cpuDir), zap.Error(err))
-		ch <- prometheus.MustNewConstMetric(c.collectorUp, prometheus.GaugeValue, 0, "cpufreq")
+		ch <- prometheus.MustNewConstMetric(collectorUpDesc, prometheus.GaugeValue, 0, "cpufreq")
 		emitSelf(ch, c.scrapeTime, c.scrapeErrs, "cpufreq", time.Since(start), 1)
 		return
 	}
@@ -134,6 +129,6 @@ func (c *CpufreqCollector) Collect(ch chan<- prometheus.Metric) {
 		}
 	}
 
-	ch <- prometheus.MustNewConstMetric(c.collectorUp, prometheus.GaugeValue, 1, "cpufreq")
+	ch <- prometheus.MustNewConstMetric(collectorUpDesc, prometheus.GaugeValue, 1, "cpufreq")
 	emitSelf(ch, c.scrapeTime, c.scrapeErrs, "cpufreq", time.Since(start), errCount)
 }

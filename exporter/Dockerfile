@@ -58,5 +58,5 @@ CMD ["--listen-addr=:9101", "--sysfs-root=/sys"]
 # Image labels (OCI spec)
 LABEL org.opencontainers.image.title="hw-fault-exporter" \
       org.opencontainers.image.description="Prometheus exporter for ARM Linux hardware fault counters (EDAC, MCE, PCIe AER)" \
-      org.opencontainers.image.source="https://github.com/hanna-hawa/arm-linux-fault-resilience" \
+      org.opencontainers.image.source="https://github.com/hanna-hawa/fault-oracle" \
       org.opencontainers.image.licenses="Apache-2.0"

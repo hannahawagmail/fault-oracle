@@ -44,9 +44,9 @@ type PMUCollector struct {
 	opts        Options
 	readBytes   *prometheus.Desc
 	writeBytes  *prometheus.Desc
-	collectorUp *prometheus.Desc
 	scrapeTime  *prometheus.Desc
 	scrapeErrs  *prometheus.Desc
+	// collectorUp uses the shared collectorUpDesc (see shared.go).
 }
 
 func NewPMUCollector(opts Options) *PMUCollector {
@@ -62,11 +62,6 @@ func NewPMUCollector(opts Options) *PMUCollector {
 			"Cumulative memory write bytes to DRAM as measured by ARM PMU.",
 			[]string{"pmu_type"}, nil,
 		),
-		collectorUp: prometheus.NewDesc(
-			"fault_resilience_collector_up",
-			"1 if the PMU subsystem is accessible in sysfs, 0 if absent.",
-			[]string{"collector"}, nil,
-		),
 		scrapeTime: prometheus.NewDesc("hw_fault_exporter_scrape_duration_seconds",
 			"Scrape duration.", []string{"collector"}, nil),
 		scrapeErrs: prometheus.NewDesc("hw_fault_exporter_scrape_errors_total",
@@ -77,7 +72,7 @@ func NewPMUCollector(opts Options) *PMUCollector {
 func (c *PMUCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.readBytes
 	ch <- c.writeBytes
-	ch <- c.collectorUp
+	ch <- collectorUpDesc
 	ch <- c.scrapeTime
 	ch <- c.scrapeErrs
 }
@@ -91,7 +86,7 @@ func (c *PMUCollector) Collect(ch chan<- prometheus.Metric) {
 	if err != nil {
 		c.opts.Logger.Warn("PMU: cannot read event_source root",
 			zap.String("path", pmuRoot), zap.Error(err))
-		ch <- prometheus.MustNewConstMetric(c.collectorUp, prometheus.GaugeValue, 0, "pmu")
+		ch <- prometheus.MustNewConstMetric(collectorUpDesc, prometheus.GaugeValue, 0, "pmu")
 		emitSelf(ch, c.scrapeTime, c.scrapeErrs, "pmu", time.Since(start), 1)
 		return
 	}
@@ -135,9 +130,9 @@ func (c *PMUCollector) Collect(ch chan<- prometheus.Metric) {
 
 	if collected == 0 && len(entries) == 0 {
 		// No PMU devices at all
-		ch <- prometheus.MustNewConstMetric(c.collectorUp, prometheus.GaugeValue, 0, "pmu")
+		ch <- prometheus.MustNewConstMetric(collectorUpDesc, prometheus.GaugeValue, 0, "pmu")
 	} else {
-		ch <- prometheus.MustNewConstMetric(c.collectorUp, prometheus.GaugeValue, 1, "pmu")
+		ch <- prometheus.MustNewConstMetric(collectorUpDesc, prometheus.GaugeValue, 1, "pmu")
 	}
 	emitSelf(ch, c.scrapeTime, c.scrapeErrs, "pmu", time.Since(start), errCount)
 	c.opts.Logger.Debug("PMU: collected", zap.Int("counters", collected))

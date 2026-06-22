@@ -30,9 +30,9 @@ type ThermalCollector struct {
 	opts         Options
 	zoneTemp     *prometheus.Desc
 	coolingState *prometheus.Desc
-	collectorUp  *prometheus.Desc
 	scrapeTime   *prometheus.Desc
 	scrapeErrs   *prometheus.Desc
+	// collectorUp uses the shared collectorUpDesc (see shared.go).
 }
 
 // NewThermalCollector creates a ThermalCollector that reads thermal zones and
@@ -50,11 +50,6 @@ func NewThermalCollector(opts Options) *ThermalCollector {
 			"Current state of a cooling device (0 = off / minimum cooling).",
 			[]string{"device", "device_type"}, nil,
 		),
-		collectorUp: prometheus.NewDesc(
-			"fault_resilience_collector_up",
-			"1 if the collector subsystem is accessible in sysfs, 0 if absent.",
-			[]string{"collector"}, nil,
-		),
 		scrapeTime: prometheus.NewDesc(
 			"hw_fault_exporter_scrape_duration_seconds",
 			"Duration of the last scrape cycle.", []string{"collector"}, nil,
@@ -70,7 +65,7 @@ func NewThermalCollector(opts Options) *ThermalCollector {
 func (c *ThermalCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.zoneTemp
 	ch <- c.coolingState
-	ch <- c.collectorUp
+	ch <- collectorUpDesc
 	ch <- c.scrapeTime
 	ch <- c.scrapeErrs
 }
@@ -87,7 +82,7 @@ func (c *ThermalCollector) Collect(ch chan<- prometheus.Metric) {
 	if err != nil {
 		c.opts.Logger.Warn("Thermal: cannot read thermal root",
 			zap.String("path", thermalDir), zap.Error(err))
-		ch <- prometheus.MustNewConstMetric(c.collectorUp, prometheus.GaugeValue, 0, "thermal")
+		ch <- prometheus.MustNewConstMetric(collectorUpDesc, prometheus.GaugeValue, 0, "thermal")
 		emitSelf(ch, c.scrapeTime, c.scrapeErrs, "thermal", time.Since(start), 1)
 		return
 	}
@@ -127,6 +122,6 @@ func (c *ThermalCollector) Collect(ch chan<- prometheus.Metric) {
 		}
 	}
 
-	ch <- prometheus.MustNewConstMetric(c.collectorUp, prometheus.GaugeValue, 1, "thermal")
+	ch <- prometheus.MustNewConstMetric(collectorUpDesc, prometheus.GaugeValue, 1, "thermal")
 	emitSelf(ch, c.scrapeTime, c.scrapeErrs, "thermal", time.Since(start), errCount)
 }

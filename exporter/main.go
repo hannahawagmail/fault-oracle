@@ -32,7 +32,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/hannahawagmail/fault-oracle/exporter/collectors"
+	"github.com/hanna-hawa/fault-oracle/exporter/collectors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/expfmt"

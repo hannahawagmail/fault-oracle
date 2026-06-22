@@ -18,7 +18,7 @@
 
 [Unit]
 Description=Hardware Fault Exporter — DPU Control Plane
-Documentation=https://github.com/hanna-hawa/arm-linux-fault-resilience
+Documentation=https://github.com/hanna-hawa/fault-oracle
 After=network-online.target
 Wants=network-online.target
 # Ensure OvS is up before starting — exporter may expose OvS-related metrics

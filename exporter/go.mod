@@ -1,6 +1,6 @@
 // Run `cd exporter && go mod tidy` to generate go.sum after cloning.
 // Do NOT hand-edit this file; let the Go toolchain manage dependencies.
-module github.com/hannahawagmail/fault-oracle/exporter
+module github.com/hanna-hawa/fault-oracle/exporter
 
 go 1.21
 

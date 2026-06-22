@@ -171,7 +171,10 @@ else
 fi
 
 # Verify dmesg log entry
-if dmesg | tail -n +$((DMESG_OFFSET+1)) | grep -q "EDAC MC0.*CE"; then
+# Derive the dmesg controller token from $CONTROLLER (e.g. mc1 -> EDAC MC1)
+# so injecting into a non-default controller is verified correctly.
+DMESG_MC="EDAC ${CONTROLLER^^}"
+if dmesg | tail -n +$((DMESG_OFFSET+1)) | grep -q "${DMESG_MC}.*CE"; then
     log "PASS: CE log entry found in dmesg"
 else
     err "FAIL: No CE log entry found in dmesg after injection"
