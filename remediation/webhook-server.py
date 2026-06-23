@@ -51,6 +51,7 @@ FALSE_POSITIVES_FILE: str = os.environ.get(
 RETRAIN_FILE: str = os.environ.get(
     "RETRAIN_FILE", "/var/lib/hw-fault-ml/retrain-needed"
 )
+WEBHOOK_TOKEN: str | None = os.environ.get("WEBHOOK_TOKEN")
 
 logging.basicConfig(
     level=logging.INFO,
@@ -58,6 +59,9 @@ logging.basicConfig(
     stream=sys.stdout,
 )
 log = logging.getLogger("webhook-server")
+
+if not WEBHOOK_TOKEN:
+    log.warning("WEBHOOK_TOKEN not set — running without authentication (dev mode)")
 
 # ---------------------------------------------------------------------------
 # Prometheus metrics (hand-rolled, no deps)
@@ -199,11 +203,23 @@ class WebhookHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _check_auth(self) -> bool:
+        """Return True if authorized, otherwise send 401 and return False."""
+        if not WEBHOOK_TOKEN:
+            return True
+        auth = self.headers.get("Authorization", "")
+        if auth == f"Bearer {WEBHOOK_TOKEN}":
+            return True
+        self._send(401, b"Unauthorized")
+        return False
+
     # ------------------------------------------------------------------
     # POST handlers
     # ------------------------------------------------------------------
 
     def do_POST(self) -> None:
+        if not self._check_auth():
+            return
         if self.path == "/webhook/replacement-confirmed":
             payload = self._read_json()
             if payload is None:
