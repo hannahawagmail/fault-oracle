@@ -46,7 +46,16 @@ class TestGenerateParseRoundtrip:
         """Generation with --ue-rate 0 produces only CE events."""
         log_file = tmp_path / "ce_only.log"
         subprocess.run(
-            ["python3", str(GENERATE_SCRIPT), "--events", "5", "--ue-rate", "0", "--output", str(log_file)],
+            [
+                "python3",
+                str(GENERATE_SCRIPT),
+                "--events",
+                "5",
+                "--ue-rate",
+                "0",
+                "--output",
+                str(log_file),
+            ],
             capture_output=True,
             check=True,
         )
