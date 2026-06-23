@@ -201,15 +201,16 @@ groups:
         annotations:
           summary: "CPU critical temperature on {{ $labels.node }}: {{ $value }}°C"
 
-  # Anomaly detection rules
-  - record: anomaly:edac_ce_zscore:current
-    expr: anomaly_zscore{collector="edac"}
+  - name: anomaly.detection
+    rules:
+      - record: anomaly:edac_ce_zscore:current
+        expr: anomaly_zscore{collector="edac"}
 
-  - alert: EDACCEAnomalyDetected
-    expr: anomaly_detected{collector="edac"} == 1
-    for: 5m
-    labels:
-      severity: warning
-    annotations:
-      summary: "EDAC CE rate anomaly on {{ $labels.instance }}"
-      description: "Z-score {{ $value | humanize }} exceeds ±3σ vs 7-day baseline."
+      - alert: EDACCEAnomalyDetected
+        expr: anomaly_detected{collector="edac"} == 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "EDAC CE rate anomaly on {{ $labels.instance }}"
+          description: "Z-score {{ $value | humanize }} exceeds ±3σ vs 7-day baseline."
