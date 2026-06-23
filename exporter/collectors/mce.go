@@ -38,7 +38,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -330,5 +329,3 @@ type Options struct {
 // Ensure Options is defined once (declared here, used by edac.go and aer.go via same package).
 // Go does not allow duplicate type declarations in the same package — the Options struct is the
 // single canonical definition for all collectors in this package.
-var _ = fmt.Sprintf       // keep fmt imported
-var _ = strings.TrimSpace // keep strings imported

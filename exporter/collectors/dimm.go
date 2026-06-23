@@ -393,7 +393,7 @@ func (m *DIMMMapper) ParseDMIDecodeOutput(r io.Reader) error {
 				gb, _ := strconv.ParseUint(sm[1], 10, 64)
 				cur.SizeMB = gb * 1024
 			} else if sm := reDMISizeMB.FindStringSubmatch(val); sm != nil {
-				cur.SizeMB, _ = strconv.ParseUint(sm[1], 10, 64)
+				cur.SizeMB, _ = strconv.ParseUint(sm[1], 10, 64) // regex pre-validates numeric
 			}
 		case "Type":
 			if val != "Unknown" {
