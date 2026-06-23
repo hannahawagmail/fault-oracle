@@ -41,7 +41,7 @@ Usage:
   python3 parse_edac_trace.py --input dmesg.log --event-types CE,UE --output events.json
   dmesg | python3 parse_edac_trace.py --input - --output events.json
 
-Author: Hanna Hawa <hhhawa@gmail.com>
+Author: Hanna Hawa (github.com/hanna-hawa)
 """
 
 import argparse

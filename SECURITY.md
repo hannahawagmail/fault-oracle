@@ -17,15 +17,15 @@ Older branches are not maintained.
 
 **Do not open a public GitHub issue for security vulnerabilities.**
 
-Send a report by email to:
+Report vulnerabilities privately through GitHub's built-in private
+vulnerability reporting:
 
-```
-hanna.hawa@gmail.com
-```
+1. Go to the repository's **Security** tab.
+2. Click **Report a vulnerability** (under "Private vulnerability reporting").
+3. Fill in the advisory form with the details below.
 
-Use the subject line prefix: `SECURITY:`
-
-Example: `SECURITY: privilege escalation in inject_edac_ce.sh`
+This routes the report directly to the maintainers without exposing it
+publicly and without sharing any personal email address.
 
 ### What to include in your report
 

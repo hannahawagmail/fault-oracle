@@ -58,4 +58,4 @@ forward-progress safety.
 ### Contact
 
 - GitHub: [hanna-hawa](https://github.com/hanna-hawa)
-- Email: hhhawa@gmail.com
+- Security reports: see [SECURITY.md](SECURITY.md) (GitHub private vulnerability reporting)

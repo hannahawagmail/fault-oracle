@@ -14,7 +14,7 @@
 // which is the correct type for hardware error event counts — the kernel never
 // resets them without a reboot.
 //
-// Author: Hanna Hawa <hhhawa@gmail.com>
+// Author: Hanna Hawa (github.com/hanna-hawa)
 
 package main
 

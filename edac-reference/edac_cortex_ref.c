@@ -24,7 +24,7 @@
  *     /sys/kernel/debug/edac_cortex_ref/inject_ce   (inject correctable error)
  *     /sys/kernel/debug/edac_cortex_ref/inject_ue   (inject uncorrectable error)
  *
- * Author: Hanna Hawa <hhhawa@gmail.com>
+ * Author: Hanna Hawa (github.com/hanna-hawa)
  */
 
 #include <linux/module.h>
@@ -812,7 +812,7 @@ module_init(cortex_ref_init);
 module_exit(cortex_ref_exit);
 
 MODULE_LICENSE("GPL v2");
-MODULE_AUTHOR("Hanna Hawa <hhhawa@gmail.com>");
+MODULE_AUTHOR("Hanna Hawa (github.com/hanna-hawa)");
 MODULE_DESCRIPTION("ARM Cortex-A72 Reference EDAC Driver — generic poll-based implementation");
 MODULE_VERSION(DRIVER_VERSION);
 MODULE_ALIAS("platform:" DRIVER_NAME);
