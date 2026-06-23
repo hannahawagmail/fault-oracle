@@ -19,7 +19,7 @@ Run `make` (no arguments) to print the full target list with descriptions.
 | `make test-shell` | Run BATS shell integration tests |
 | `make test-all` | Run every suite (Python + Go + BATS) |
 | `make coverage` | Python coverage report; fails below 90% |
-| `make lint` | shellcheck + black/flake8 + gofmt/vet |
+| `make lint` | shellcheck + ruff + gofmt/vet |
 | `make build` | Build the Go exporter for linux/arm64 |
 | `make qemu-boot` | Boot an ARM64 kernel in QEMU and run the integration suite |
 | `make inject-ce` | Inject a correctable ECC error (root required; `BACKEND=none` for dry-run) |
@@ -35,7 +35,7 @@ Run `make` (no arguments) to print the full target list with descriptions.
 | `make release-snapshot` | Quick snapshot build (no git tag required) |
 | `make check-tools` | Check that all required tools are installed |
 | `make install-tools` | Install required developer tools (Debian/Ubuntu) |
-| `make fmt` | Auto-format Python (black) and Go (gofmt) sources |
+| `make fmt` | Auto-format Python (ruff format) and Go (gofmt) sources |
 | `make clean` | Remove build artifacts, coverage reports, and dist/ |
 
 Variables you can override on the command line:
@@ -61,6 +61,7 @@ make lint SC_LEVEL=error             # stricter shellcheck
 | Docker Engine + Compose v2 | 24.0 | Local dev stack |
 | kubectl + Helm | 1.28 / 3.12 | Kubernetes deployment |
 | shellcheck | 0.9 | Shell script static analysis |
+| ruff | 0.4 | Python linter and formatter |
 | bats-core | 1.10 | Shell-based integration tests |
 
 ### Python environment
@@ -273,8 +274,8 @@ Refs: #148
 ### Python
 
 - First line: `# SPDX-License-Identifier: Apache-2.0`
-- Formatted with `black --line-length 100`
-- Linted with `flake8 --max-line-length=100`
+- Formatted with `ruff format`
+- Linted with `ruff check`
 - No `print()` in library code — use `logging`
 
 ### Go
@@ -364,7 +365,7 @@ Before opening a PR, verify:
 - [ ] `shellcheck -S warning` passes (or suppressions are explained)
 - [ ] `set -euo pipefail` present in all shell scripts
 - [ ] SPDX header present on all source files (`.sh`, `.py`, `.go`, `.yaml`, `.yml`)
-- [ ] New Python code formatted with `black --line-length 100` and passes `ruff check`
+- [ ] New Python code formatted with `ruff format` and passes `ruff check`
 - [ ] Go code passes `go vet ./...` and `gofmt`
 - [ ] Coverage thresholds met (see table above)
 - [ ] Tests co-located — no "I'll add tests in a follow-up" PRs
