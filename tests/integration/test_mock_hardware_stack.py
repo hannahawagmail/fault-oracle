@@ -7,22 +7,21 @@ Simulates: fake sysfs/subprocess → collectors → Prometheus text output
 
 Does not require real hardware, real Prometheus, or root access.
 """
-import importlib.util
-import math
-import sys
-import tempfile
-import json
-from pathlib import Path
-from unittest.mock import patch, MagicMock
 
-import pytest
-import pandas as pd
+import importlib.util
+import sys
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
 import numpy as np
-from datetime import datetime, timedelta
+import pandas as pd
+import pytest
 
 # ---------------------------------------------------------------------------
 # Helper to import hyphen-named modules
 # ---------------------------------------------------------------------------
+
 
 def import_from_file(name, path):
     spec = importlib.util.spec_from_file_location(name, path)
@@ -39,14 +38,16 @@ REPO = Path(__file__).parent.parent.parent
 # TestMockEDACPipeline — fake sysfs EDAC tree → Python parser
 # ---------------------------------------------------------------------------
 
+
 class TestMockEDACPipeline:
     """
     Build a fake EDAC sysfs tree with tmp_path and verify the Python-side
     _MockEDACCollector (from conftest) reads it correctly.
     """
 
-    def _build_edac_tree(self, root: Path, mc: str, csrow: str,
-                         ch0_ce: int, ch0_ue: int, ch1_ce: int = 0) -> Path:
+    def _build_edac_tree(
+        self, root: Path, mc: str, csrow: str, ch0_ce: int, ch0_ue: int, ch1_ce: int = 0
+    ) -> Path:
         """Create minimal EDAC sysfs layout under root."""
         mc_dir = root / "devices" / "system" / "edac" / "mc" / mc / csrow
         mc_dir.mkdir(parents=True)
@@ -140,13 +141,17 @@ class TestMockEDACPipeline:
 # TestMockMLPipeline — import ML modules, run with synthetic data
 # ---------------------------------------------------------------------------
 
+
+@pytest.mark.skipif(
+    not importlib.util.find_spec("prophet"),
+    reason="prophet not installed",
+)
 class TestMockMLPipeline:
     """Test CE forecaster + failure probability with synthetic 168-point series."""
 
     @pytest.fixture(scope="class")
     def ce_mod(self):
-        return import_from_file("ce_forecaster_int",
-                                REPO / "ml" / "ce-forecaster.py")
+        return import_from_file("ce_forecaster_int", REPO / "ml" / "ce-forecaster.py")
 
     def _make_series(self, n=168, rate=2.0, noise=0.05, anchor_to_now=False):
         # Anchor to current time so Prophet's future window overlaps 'now'
@@ -201,12 +206,12 @@ class TestMockMLPipeline:
         y_spike += [5e-5 + rng.normal(0, 1e-7) for _ in range(24)]
         df_spike = pd.DataFrame({"ds": ds, "y": [max(0, v) for v in y_spike]})
 
-        m_flat  = ce_mod.fit_model(df_flat)
+        m_flat = ce_mod.fit_model(df_flat)
         m_spike = ce_mod.fit_model(df_spike)
-        fc_flat  = ce_mod.forecast(m_flat,  horizon_days=7)
+        fc_flat = ce_mod.forecast(m_flat, horizon_days=7)
         fc_spike = ce_mod.forecast(m_spike, horizon_days=7)
 
-        p_flat  = ce_mod.failure_probability(fc_flat,  7, threshold_rate=1e-6)
+        p_flat = ce_mod.failure_probability(fc_flat, 7, threshold_rate=1e-6)
         p_spike = ce_mod.failure_probability(fc_spike, 7, threshold_rate=1e-6)
 
         # Spike series should have equal or higher probability
@@ -216,12 +221,12 @@ class TestMockMLPipeline:
         """< 24 data points → failure_probability returns 0.0 (empty window)."""
         start = datetime(2026, 1, 1)
         ds = [start + timedelta(hours=i) for i in range(20)]
-        y  = [2e-6] * 20
+        y = [2e-6] * 20
         df = pd.DataFrame({"ds": ds, "y": y})
         # fit_model itself works; but the forecast window for next 7 days would
         # need to start 'now', which is far from training data → empty window
         model = ce_mod.fit_model(df)
-        fc    = ce_mod.forecast(model, horizon_days=1)
+        fc = ce_mod.forecast(model, horizon_days=1)
         # Pass a threshold so extreme that nothing ever triggers
         prob = ce_mod.failure_probability(fc, horizon_days=1, threshold_rate=1e10)
         assert prob == pytest.approx(0.0)
@@ -231,13 +236,13 @@ class TestMockMLPipeline:
 # TestMockAnomalyPipeline — Z-score detector with synthetic metrics
 # ---------------------------------------------------------------------------
 
+
 class TestMockAnomalyPipeline:
     """Unit-level integration: zscore_detector functions with synthetic samples."""
 
     @pytest.fixture(scope="class")
     def zscore_mod(self):
-        return import_from_file("zscore_detector_int",
-                                REPO / "anomaly" / "zscore-detector.py")
+        return import_from_file("zscore_detector_int", REPO / "anomaly" / "zscore-detector.py")
 
     def test_30_normal_samples_no_anomaly(self, zscore_mod):
         """30 normal samples → |Z| < 3.0, anomaly_detected = 0."""
@@ -274,8 +279,7 @@ class TestMockAnomalyPipeline:
         assert stddev == pytest.approx(1.0)
 
         labels = 'instance="node1",collector="edac"'
-        data = {labels: {"zscore": 0.0, "mean": mean, "stddev": stddev,
-                         "stddev_clamped": clamped}}
+        data = {labels: {"zscore": 0.0, "mean": mean, "stddev": stddev, "stddev_clamped": clamped}}
         output = zscore_mod.emit_metrics(data, threshold=3.0)
         assert "anomaly_synthetic_stddev" in output
         assert f"anomaly_synthetic_stddev{{{labels}}} 1" in output
@@ -297,27 +301,27 @@ class TestMockAnomalyPipeline:
         z_b = zscore_mod.compute_zscore(mean_b, mean_b, std_b)
 
         data = {
-            labels_a: {"zscore": z_a, "mean": mean_a, "stddev": std_a,
-                       "stddev_clamped": clamp_a},
-            labels_b: {"zscore": z_b, "mean": mean_b, "stddev": std_b,
-                       "stddev_clamped": clamp_b},
+            labels_a: {"zscore": z_a, "mean": mean_a, "stddev": std_a, "stddev_clamped": clamp_a},
+            labels_b: {"zscore": z_b, "mean": mean_b, "stddev": std_b, "stddev_clamped": clamp_b},
         }
         output = zscore_mod.emit_metrics(data, threshold=3.0)
-        assert f'anomaly_detected{{{labels_a}}} 1' in output
-        assert f'anomaly_detected{{{labels_b}}} 0' in output
+        assert f"anomaly_detected{{{labels_a}}} 1" in output
+        assert f"anomaly_detected{{{labels_b}}} 0" in output
 
 
 # ---------------------------------------------------------------------------
 # TestMockRemediation — remediation controller decision logic
 # ---------------------------------------------------------------------------
 
+
 class TestMockRemediation:
     """Test the remediation controller's threshold / cooldown / dry-run logic."""
 
     @pytest.fixture(scope="class")
     def ctrl(self):
-        return import_from_file("remediation_controller_int",
-                                REPO / "remediation" / "remediation-controller.py")
+        return import_from_file(
+            "remediation_controller_int", REPO / "remediation" / "remediation-controller.py"
+        )
 
     def test_high_probability_triggers_cordon_action(self, ctrl):
         """failure_probability_7d = 0.9 (above 0.8 threshold) → cordon attempted."""
@@ -326,9 +330,11 @@ class TestMockRemediation:
         kube.create_event.return_value = {}
 
         state = {}
-        with patch.object(ctrl, "DRY_RUN", False), \
-             patch.object(ctrl, "CORDON_THRESHOLD", 0.8), \
-             patch.object(ctrl, "push_loki", lambda *a, **kw: None):
+        with (
+            patch.object(ctrl, "DRY_RUN", False),
+            patch.object(ctrl, "CORDON_THRESHOLD", 0.8),
+            patch.object(ctrl, "push_loki", lambda *a, **kw: None),
+        ):
             ctrl.remediate_node(kube, "worker-01", 0.9, state)
 
         kube.patch_node.assert_called()
@@ -338,9 +344,11 @@ class TestMockRemediation:
         """failure_probability_7d = 0.5 → below 0.8 threshold, no cordon."""
         kube = MagicMock()
         state = {}
-        with patch.object(ctrl, "DRY_RUN", False), \
-             patch.object(ctrl, "CORDON_THRESHOLD", 0.8), \
-             patch.object(ctrl, "push_loki", lambda *a, **kw: None):
+        with (
+            patch.object(ctrl, "DRY_RUN", False),
+            patch.object(ctrl, "CORDON_THRESHOLD", 0.8),
+            patch.object(ctrl, "push_loki", lambda *a, **kw: None),
+        ):
             # poll_once decides whether to call remediate_node; test policy inline
             prob = 0.5
             threshold = 0.8
@@ -350,7 +358,7 @@ class TestMockRemediation:
 
     def test_cooldown_blocks_second_action(self, ctrl):
         """Node actioned 2h ago with cooldown=4h → cooldown_active returns True."""
-        from datetime import timezone
+
         two_hours_ago = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
         state = {"worker-02": {"last_action": two_hours_ago, "probability": 0.9}}
 
@@ -363,9 +371,11 @@ class TestMockRemediation:
         """DRY_RUN=True → patch_node never called, state still updated."""
         kube = MagicMock()
         state = {}
-        with patch.object(ctrl, "DRY_RUN", True), \
-             patch.object(ctrl, "CORDON_THRESHOLD", 0.8), \
-             patch.object(ctrl, "push_loki", lambda *a, **kw: None):
+        with (
+            patch.object(ctrl, "DRY_RUN", True),
+            patch.object(ctrl, "CORDON_THRESHOLD", 0.8),
+            patch.object(ctrl, "push_loki", lambda *a, **kw: None),
+        ):
             ctrl.remediate_node(kube, "worker-03", 0.85, state)
 
         kube.patch_node.assert_not_called()
@@ -380,9 +390,11 @@ class TestMockRemediation:
 
         state = {}
         nodes = [("worker-10", 0.85), ("worker-11", 0.92)]
-        with patch.object(ctrl, "DRY_RUN", False), \
-             patch.object(ctrl, "CORDON_THRESHOLD", 0.8), \
-             patch.object(ctrl, "push_loki", lambda *a, **kw: None):
+        with (
+            patch.object(ctrl, "DRY_RUN", False),
+            patch.object(ctrl, "CORDON_THRESHOLD", 0.8),
+            patch.object(ctrl, "push_loki", lambda *a, **kw: None),
+        ):
             for node, prob in nodes:
                 ctrl.remediate_node(kube, node, prob, state)
 

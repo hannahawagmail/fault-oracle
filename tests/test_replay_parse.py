@@ -30,8 +30,7 @@ import pytest
 REPO_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(REPO_ROOT / "replay"))
 
-from parse_edac_trace import TraceParser, HardwareEvent
-
+from parse_edac_trace import HardwareEvent, TraceParser
 
 # ---------------------------------------------------------------------------
 # Test log line fixtures
@@ -57,14 +56,10 @@ UE_LINE_STANDARD = (
 )
 
 # PCIe AER correctable
-AER_CE_LINE = (
-    "[  100.000000] pcieport 0000:00:01.0: AER: Corrected error received: 0000:01:00.0"
-)
+AER_CE_LINE = "[  100.000000] pcieport 0000:00:01.0: AER: Corrected error received: 0000:01:00.0"
 
 # PCIe AER uncorrectable non-fatal
-AER_UE_LINE = (
-    "[  200.000000] pcieport 0000:00:01.0: AER: Uncorrected (Non-Fatal) error received: 0000:01:00.0"
-)
+AER_UE_LINE = "[  200.000000] pcieport 0000:00:01.0: AER: Uncorrected (Non-Fatal) error received: 0000:01:00.0"
 
 # Syslog-format line
 SYSLOG_CE_LINE = (
@@ -89,6 +84,7 @@ GARBAGE_LINE = "systemd[1]: Starting system..."
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def parse_lines(*lines: str, event_types=None) -> list[HardwareEvent]:
     parser = TraceParser(event_types=event_types)
     text = "\n".join(lines)
@@ -99,8 +95,8 @@ def parse_lines(*lines: str, event_types=None) -> list[HardwareEvent]:
 # Test: Basic CE parsing
 # ---------------------------------------------------------------------------
 
-class TestCEParsing:
 
+class TestCEParsing:
     def test_standard_ce_parsed(self):
         events = parse_lines(CE_LINE_STANDARD)
         assert len(events) == 1
@@ -119,7 +115,7 @@ class TestCEParsing:
     def test_ce_page_extracted(self):
         events = parse_lines(CE_LINE_STANDARD)
         e = events[0]
-        assert e.page == 0x12ab
+        assert e.page == 0x12AB
 
     def test_ce_offset_extracted(self):
         events = parse_lines(CE_LINE_STANDARD)
@@ -186,8 +182,8 @@ class TestCEParsing:
 # Test: UE parsing
 # ---------------------------------------------------------------------------
 
-class TestUEParsing:
 
+class TestUEParsing:
     def test_standard_ue_parsed(self):
         events = parse_lines(UE_LINE_STANDARD)
         assert len(events) == 1
@@ -203,7 +199,7 @@ class TestUEParsing:
 
     def test_ue_page_extracted(self):
         events = parse_lines(UE_LINE_STANDARD)
-        assert events[0].page == 0x12ab
+        assert events[0].page == 0x12AB
 
     def test_ue_offset_extracted(self):
         events = parse_lines(UE_LINE_STANDARD)
@@ -223,8 +219,8 @@ class TestUEParsing:
 # Test: AER parsing
 # ---------------------------------------------------------------------------
 
-class TestAERParsing:
 
+class TestAERParsing:
     def test_aer_correctable_parsed(self):
         events = parse_lines(AER_CE_LINE)
         assert len(events) == 1
@@ -273,8 +269,8 @@ class TestAERParsing:
 # Test: Multiple events and ordering
 # ---------------------------------------------------------------------------
 
-class TestMultipleEvents:
 
+class TestMultipleEvents:
     def test_ce_then_ue_ordering(self):
         events = parse_lines(CE_LINE_STANDARD, UE_LINE_STANDARD)
         assert len(events) == 2
@@ -293,8 +289,7 @@ class TestMultipleEvents:
         assert monos == sorted(monos)
 
     def test_mixed_types_all_parsed(self):
-        events = parse_lines(CE_LINE_STANDARD, UE_LINE_STANDARD,
-                             AER_CE_LINE, AER_UE_LINE)
+        events = parse_lines(CE_LINE_STANDARD, UE_LINE_STANDARD, AER_CE_LINE, AER_UE_LINE)
         types = {e.event_type for e in events}
         assert "CE" in types
         assert "UE" in types
@@ -315,22 +310,21 @@ class TestMultipleEvents:
 # Test: Filtering by event type
 # ---------------------------------------------------------------------------
 
-class TestEventTypeFiltering:
 
+class TestEventTypeFiltering:
     def test_filter_ce_only(self):
-        events = parse_lines(CE_LINE_STANDARD, UE_LINE_STANDARD, AER_CE_LINE,
-                             event_types=["CE"])
+        events = parse_lines(CE_LINE_STANDARD, UE_LINE_STANDARD, AER_CE_LINE, event_types=["CE"])
         assert all(e.event_type == "CE" for e in events)
         assert len(events) == 1
 
     def test_filter_ue_only(self):
-        events = parse_lines(CE_LINE_STANDARD, UE_LINE_STANDARD,
-                             event_types=["UE"])
+        events = parse_lines(CE_LINE_STANDARD, UE_LINE_STANDARD, event_types=["UE"])
         assert all(e.event_type == "UE" for e in events)
 
     def test_filter_aer_only(self):
-        events = parse_lines(CE_LINE_STANDARD, AER_CE_LINE, AER_UE_LINE,
-                             event_types=["AER_CE", "AER_UE"])
+        events = parse_lines(
+            CE_LINE_STANDARD, AER_CE_LINE, AER_UE_LINE, event_types=["AER_CE", "AER_UE"]
+        )
         assert all(e.event_type in ("AER_CE", "AER_UE") for e in events)
 
     def test_empty_filter_returns_nothing(self):
@@ -346,8 +340,8 @@ class TestEventTypeFiltering:
 # Test: Edge cases and robustness
 # ---------------------------------------------------------------------------
 
-class TestEdgeCases:
 
+class TestEdgeCases:
     def test_empty_input(self):
         events = parse_lines("")
         assert events == []
@@ -365,8 +359,9 @@ class TestEdgeCases:
         assert len(events) == 1
 
     def test_mixed_garbage_and_valid(self):
-        events = parse_lines(GARBAGE_LINE, CE_LINE_STANDARD,
-                             GARBAGE_LINE, UE_LINE_STANDARD, GARBAGE_LINE)
+        events = parse_lines(
+            GARBAGE_LINE, CE_LINE_STANDARD, GARBAGE_LINE, UE_LINE_STANDARD, GARBAGE_LINE
+        )
         assert len(events) == 2
 
     def test_very_large_page_number(self):
@@ -376,7 +371,7 @@ class TestEdgeCases:
         )
         events = parse_lines(line)
         assert len(events) == 1
-        assert events[0].page == 0xffffffff
+        assert events[0].page == 0xFFFFFFFF
 
     def test_zero_syndrome(self):
         line = (
@@ -406,8 +401,8 @@ class TestEdgeCases:
 # Test: JSON serialization roundtrip
 # ---------------------------------------------------------------------------
 
-class TestJSONRoundtrip:
 
+class TestJSONRoundtrip:
     def test_serialization_produces_valid_json(self):
         events = parse_lines(CE_LINE_STANDARD, UE_LINE_STANDARD, AER_CE_LINE)
         serialized = [asdict(e) for e in events]
@@ -419,10 +414,23 @@ class TestJSONRoundtrip:
         events = parse_lines(CE_LINE_STANDARD)
         d = asdict(events[0])
         required_fields = [
-            "seq", "timestamp_str", "timestamp_ns", "monotonic_s",
-            "event_type", "subsystem", "controller", "csrow", "channel",
-            "count", "page", "offset", "grain", "syndrome",
-            "pci_device", "aer_error_type", "raw_message"
+            "seq",
+            "timestamp_str",
+            "timestamp_ns",
+            "monotonic_s",
+            "event_type",
+            "subsystem",
+            "controller",
+            "csrow",
+            "channel",
+            "count",
+            "page",
+            "offset",
+            "grain",
+            "syndrome",
+            "pci_device",
+            "aer_error_type",
+            "raw_message",
         ]
         for field in required_fields:
             assert field in d, f"Field '{field}' missing from serialized event"
@@ -461,8 +469,8 @@ class TestJSONRoundtrip:
 # Test: Sample trace file
 # ---------------------------------------------------------------------------
 
-class TestSampleTrace:
 
+class TestSampleTrace:
     def test_sample_trace_exists(self, sample_trace_path):
         assert sample_trace_path.exists(), f"Sample trace not found: {sample_trace_path}"
 
@@ -479,12 +487,8 @@ class TestSampleTrace:
 
     def test_sample_trace_ce_before_ue(self, sample_events):
         """CE storm should precede the UE event in the sample trace."""
-        first_ue_idx = next(
-            (i for i, e in enumerate(sample_events) if e.event_type == "UE"), None
-        )
-        first_ce_idx = next(
-            (i for i, e in enumerate(sample_events) if e.event_type == "CE"), None
-        )
+        first_ue_idx = next((i for i, e in enumerate(sample_events) if e.event_type == "UE"), None)
+        first_ce_idx = next((i for i, e in enumerate(sample_events) if e.event_type == "CE"), None)
         assert first_ce_idx is not None
         assert first_ue_idx is not None
         assert first_ce_idx < first_ue_idx, "CE events should come before UE in sample trace"
@@ -494,7 +498,7 @@ class TestSampleTrace:
         monos = [e.monotonic_s for e in sample_events if e.monotonic_s is not None]
         for i in range(1, len(monos)):
             assert monos[i] >= monos[i - 1], (
-                f"Timestamp regression at event {i}: {monos[i]} < {monos[i-1]}"
+                f"Timestamp regression at event {i}: {monos[i]} < {monos[i - 1]}"
             )
 
     def test_sample_trace_all_edac_subsystem(self, sample_events):
@@ -520,24 +524,25 @@ class TestSampleTrace:
     def test_sample_events_field_non_empty(self, sample_events, field):
         for e in sample_events:
             val = getattr(e, field)
-            assert val is not None and val != "", (
-                f"Event {e.seq}: field '{field}' is empty"
-            )
+            assert val is not None and val != "", f"Event {e.seq}: field '{field}' is empty"
 
 
 # ---------------------------------------------------------------------------
 # Test: Replay timing calculation
 # ---------------------------------------------------------------------------
 
-class TestReplayTiming:
 
-    @pytest.mark.parametrize("mono_prev,mono_curr,speed,expected_wait_s", [
-        (0.0, 1.0, 1.0, 1.0),      # 1s gap at 1× speed
-        (0.0, 1.0, 2.0, 0.5),      # 1s gap at 2× speed → 0.5s
-        (0.0, 1.0, 0.5, 2.0),      # 1s gap at 0.5× speed → 2.0s (slow-mo)
-        (10.0, 10.05, 1.0, 0.05),  # 50ms gap
-        (0.0, 0.001, 1.0, 0.001),  # 1ms gap
-    ])
+class TestReplayTiming:
+    @pytest.mark.parametrize(
+        "mono_prev,mono_curr,speed,expected_wait_s",
+        [
+            (0.0, 1.0, 1.0, 1.0),  # 1s gap at 1× speed
+            (0.0, 1.0, 2.0, 0.5),  # 1s gap at 2× speed → 0.5s
+            (0.0, 1.0, 0.5, 2.0),  # 1s gap at 0.5× speed → 2.0s (slow-mo)
+            (10.0, 10.05, 1.0, 0.05),  # 50ms gap
+            (0.0, 0.001, 1.0, 0.001),  # 1ms gap
+        ],
+    )
     def test_inter_event_delay(self, mono_prev, mono_curr, speed, expected_wait_s):
         """Verify inter-event delay calculation: (curr - prev) / speed."""
         wait = (mono_curr - mono_prev) / speed
@@ -588,8 +593,7 @@ SYSLOG_CE_LINE = (
 MCE_LINE = "[  55.123456] mce: [Hardware Error]: Machine check events logged"
 
 AER_UE_LINE = (
-    "[  88.000000] pcieport 0000:00:01.0: AER: Uncorrected (Non-Fatal) "
-    "error received: 0000:01:00.0"
+    "[  88.000000] pcieport 0000:00:01.0: AER: Uncorrected (Non-Fatal) error received: 0000:01:00.0"
 )
 AER_UE_TYPE_LINE = "[  88.000001] aer_layer=Transaction Layer, aer_agent=Receiver ID"
 
@@ -622,7 +626,7 @@ class TestSyslogTimestamp:
 
     def test_syslog_page_extracted(self):
         events = parse_lines(SYSLOG_CE_LINE)
-        assert events[0].page == 0xabcd
+        assert events[0].page == 0xABCD
 
     def test_syslog_syndrome_extracted(self):
         events = parse_lines(SYSLOG_CE_LINE)
@@ -725,12 +729,14 @@ class TestPrintStats:
     """print_stats writes summary to stderr without crashing."""
 
     def test_empty_events_no_crash(self):
-        from io import StringIO
         import sys
+        from io import StringIO
+
         old_stderr = sys.stderr
         sys.stderr = StringIO()
         try:
             from parse_edac_trace import print_stats
+
             print_stats([])
         finally:
             output = sys.stderr.getvalue()
@@ -738,12 +744,14 @@ class TestPrintStats:
         assert "Total events parsed: 0" in output
 
     def test_stats_counts_by_type(self):
-        from io import StringIO
         import sys
+        from io import StringIO
+
         old_stderr = sys.stderr
         sys.stderr = StringIO()
         try:
             from parse_edac_trace import print_stats
+
             events = parse_lines(CE_LINE_STANDARD + "\n" + MCE_LINE)
             print_stats(events)
         finally:
@@ -752,12 +760,14 @@ class TestPrintStats:
         assert "CE: 1" in output or "Total events parsed: 2" in output
 
     def test_stats_time_span_shown_when_monotonic(self):
-        from io import StringIO
         import sys
+        from io import StringIO
+
         old_stderr = sys.stderr
         sys.stderr = StringIO()
         try:
             from parse_edac_trace import print_stats
+
             events = parse_lines(CE_LINE_STANDARD + "\n" + MCE_LINE)
             print_stats(events)
         finally:
@@ -770,15 +780,17 @@ class TestPrintStats:
 class TestCLIMain:
     """Exercise main() via subprocess for coverage of the CLI paths."""
 
+    import json as json_mod
     import subprocess
     import tempfile
-    import json as json_mod
 
     def _run_cli(self, args, input_text=None):
         import subprocess
-        cmd = ["python3",
-               "/sessions/nice-kind-ptolemy/mnt/outputs/arm-linux-fault-resilience/replay/parse_edac_trace.py"
-               ] + args
+
+        cmd = [
+            "python3",
+            str(REPO_ROOT / "replay" / "parse_edac_trace.py"),
+        ] + args
         return subprocess.run(
             cmd,
             input=input_text,
@@ -787,16 +799,18 @@ class TestCLIMain:
         )
 
     def test_stdin_to_stdout(self):
-        result = self._run_cli(["--input", "-", "--output", "-", "--no-stats"],
-                               input_text=CE_LINE_STANDARD)
+        result = self._run_cli(
+            ["--input", "-", "--output", "-", "--no-stats"], input_text=CE_LINE_STANDARD
+        )
         assert result.returncode == 0
         data = json.loads(result.stdout)
         assert len(data) == 1
         assert data[0]["event_type"] == "CE"
 
     def test_pretty_flag(self):
-        result = self._run_cli(["--input", "-", "--output", "-", "--pretty", "--no-stats"],
-                               input_text=CE_LINE_STANDARD)
+        result = self._run_cli(
+            ["--input", "-", "--output", "-", "--pretty", "--no-stats"], input_text=CE_LINE_STANDARD
+        )
         assert result.returncode == 0
         # Pretty output has indentation
         assert "\n  " in result.stdout
@@ -812,12 +826,13 @@ class TestCLIMain:
         assert all(e["event_type"] == "CE" for e in data)
 
     def test_file_output_path(self):
-        import tempfile
         import os
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.log', delete=False) as f:
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".log", delete=False) as f:
             f.write(CE_LINE_STANDARD + "\n")
             in_path = f.name
-        out_path = in_path.replace('.log', '_out.json')
+        out_path = in_path.replace(".log", "_out.json")
         try:
             result = self._run_cli(["--input", in_path, "--output", out_path, "--no-stats"])
             assert result.returncode == 0
@@ -831,29 +846,26 @@ class TestCLIMain:
                 os.unlink(out_path)
 
     def test_stats_written_to_stderr(self):
-        result = self._run_cli(["--input", "-", "--output", "-"],
-                               input_text=CE_LINE_STANDARD)
+        result = self._run_cli(["--input", "-", "--output", "-"], input_text=CE_LINE_STANDARD)
         assert result.returncode == 0
         assert "Parse Statistics" in result.stderr
 
     def test_no_stats_suppresses_stderr(self):
-        result = self._run_cli(["--input", "-", "--output", "-", "--no-stats"],
-                               input_text=CE_LINE_STANDARD)
+        result = self._run_cli(
+            ["--input", "-", "--output", "-", "--no-stats"], input_text=CE_LINE_STANDARD
+        )
         assert result.returncode == 0
         assert "Parse Statistics" not in result.stderr
 
     def test_empty_input_returns_empty_array(self):
-        result = self._run_cli(["--input", "-", "--output", "-", "--no-stats"],
-                               input_text="")
+        result = self._run_cli(["--input", "-", "--output", "-", "--no-stats"], input_text="")
         assert result.returncode == 0
         data = json.loads(result.stdout)
         assert data == []
 
     def test_mixed_event_types_all_parsed(self):
-        lines = "\n".join([CE_LINE_STANDARD, UE_LINE_STANDARD, MCE_LINE,
-                           AER_CE_LINE])
-        result = self._run_cli(["--input", "-", "--output", "-", "--no-stats"],
-                               input_text=lines)
+        lines = "\n".join([CE_LINE_STANDARD, UE_LINE_STANDARD, MCE_LINE, AER_CE_LINE])
+        result = self._run_cli(["--input", "-", "--output", "-", "--no-stats"], input_text=lines)
         assert result.returncode == 0
         data = json.loads(result.stdout)
         types = {e["event_type"] for e in data}
@@ -868,7 +880,9 @@ class TestMainDirect:
     def _run_main(self, argv, stdin_text=None):
         """Invoke main() with controlled sys.argv, stdin, stdout, stderr."""
         import io
+
         from parse_edac_trace import main
+
         old_argv = sys.argv
         old_stdin = sys.stdin
         old_stdout = sys.stdout
@@ -921,18 +935,24 @@ class TestMainDirect:
         assert "Parse Statistics" not in stderr
 
     def test_main_file_input_output(self):
-        import tempfile, os
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.log', delete=False) as fin:
+        import os
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".log", delete=False) as fin:
             fin.write(CE_LINE_STANDARD + "\n")
             in_path = fin.name
-        out_path = in_path.replace('.log', '_out.json')
+        out_path = in_path.replace(".log", "_out.json")
         try:
-            self._run_main([
-                "parse_edac_trace.py",
-                "--input", in_path,
-                "--output", out_path,
-                "--no-stats",
-            ])
+            self._run_main(
+                [
+                    "parse_edac_trace.py",
+                    "--input",
+                    in_path,
+                    "--output",
+                    out_path,
+                    "--no-stats",
+                ]
+            )
             with open(out_path) as jf:
                 data = json.load(jf)
             assert len(data) == 1
@@ -945,8 +965,16 @@ class TestMainDirect:
     def test_main_event_types_filter(self):
         lines = CE_LINE_STANDARD + "\n" + MCE_LINE
         stdout, _ = self._run_main(
-            ["parse_edac_trace.py", "--input", "-", "--output", "-",
-             "--event-types", "CE", "--no-stats"],
+            [
+                "parse_edac_trace.py",
+                "--input",
+                "-",
+                "--output",
+                "-",
+                "--event-types",
+                "CE",
+                "--no-stats",
+            ],
             stdin_text=lines,
         )
         data = json.loads(stdout)

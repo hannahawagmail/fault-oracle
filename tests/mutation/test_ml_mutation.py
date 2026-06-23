@@ -9,16 +9,18 @@ Each test is designed to catch a specific mutation:
 - Swapped numerator/denominator
 - Missing negation
 """
+
 import importlib.util
 import math
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from unittest.mock import patch, MagicMock
 
 import numpy as np
 import pandas as pd
 import pytest
+
+pytest.importorskip("prophet")
 
 # ---------------------------------------------------------------------------
 # Module loader helper
@@ -29,7 +31,7 @@ REPO = Path(__file__).parent.parent.parent
 
 def _import(name, path):
     spec = importlib.util.spec_from_file_location(name, path)
-    mod  = importlib.util.module_from_spec(spec)
+    mod = importlib.util.module_from_spec(spec)
     sys.modules[name] = mod
     spec.loader.exec_module(mod)
     return mod
@@ -38,6 +40,7 @@ def _import(name, path):
 # ---------------------------------------------------------------------------
 # Shared fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(scope="module")
 def ce_mod():
@@ -57,18 +60,21 @@ def zscore_mod():
 def _make_forecast(rate: float, n: int = 168) -> pd.DataFrame:
     """Build a synthetic forecast DataFrame as Prophet would return."""
     now = datetime.now()
-    ts  = [now + timedelta(hours=i) for i in range(n)]
-    return pd.DataFrame({
-        "ds":         ts,
-        "yhat":       [rate * 0.8] * n,
-        "yhat_lower": [rate * 0.5] * n,
-        "yhat_upper": [rate] * n,
-    })
+    ts = [now + timedelta(hours=i) for i in range(n)]
+    return pd.DataFrame(
+        {
+            "ds": ts,
+            "yhat": [rate * 0.8] * n,
+            "yhat_lower": [rate * 0.5] * n,
+            "yhat_upper": [rate] * n,
+        }
+    )
 
 
 # ===========================================================================
 # TestCEForecasterMutations (5 tests)
 # ===========================================================================
+
 
 class TestCEForecasterMutations:
     """Verify Prophet model hyper-parameters that, if mutated, would break forecasts."""
@@ -95,25 +101,25 @@ class TestCEForecasterMutations:
 
     def test_forecast_horizon_168h_contains_enough_rows(self, ce_mod):
         """forecast(7) must return >= 168 future rows (catches periods=0 mutation)."""
-        df    = _make_simple_df(n_days=60)
+        df = _make_simple_df(n_days=60)
         model = ce_mod.fit_model(df)
-        fc    = ce_mod.forecast(model, horizon_days=7)
+        fc = ce_mod.forecast(model, horizon_days=7)
         last_train = df["ds"].max()
         future = fc[fc["ds"] > last_train]
         assert len(future) >= 168 - 1  # allow ±1 for boundary
 
     def test_ds_column_is_datetime(self, ce_mod):
         """forecast DataFrame 'ds' column must be datetime (catches string mutation)."""
-        df    = _make_simple_df(n_days=30)
+        df = _make_simple_df(n_days=30)
         model = ce_mod.fit_model(df)
-        fc    = ce_mod.forecast(model, horizon_days=7)
+        fc = ce_mod.forecast(model, horizon_days=7)
         assert pd.api.types.is_datetime64_any_dtype(fc["ds"])
 
 
 def _make_simple_df(n_days: int = 60, rate: float = 1e-6) -> pd.DataFrame:
-    rng   = np.random.default_rng(42)
+    rng = np.random.default_rng(42)
     dates = pd.date_range("2026-01-01", periods=n_days * 24, freq="h")
-    y     = [max(0.0, rate + rng.normal(0, rate * 0.05)) for _ in dates]
+    y = [max(0.0, rate + rng.normal(0, rate * 0.05)) for _ in dates]
     return pd.DataFrame({"ds": dates, "y": y})
 
 
@@ -121,41 +127,42 @@ def _make_simple_df(n_days: int = 60, rate: float = 1e-6) -> pd.DataFrame:
 # TestProbabilityExporterMutations (5 tests)
 # ===========================================================================
 
+
 class TestProbabilityExporterMutations:
     """Verify that failure_probability logic is not accidentally mutated."""
 
     def test_probability_between_0_and_1(self, ce_mod):
         """failure_probability must always return a float in [0, 1]."""
         fc = _make_forecast(rate=5e-6)
-        p  = ce_mod.failure_probability(fc, horizon_days=7, threshold_rate=1e-6)
+        p = ce_mod.failure_probability(fc, horizon_days=7, threshold_rate=1e-6)
         assert 0.0 <= p <= 1.0
 
     def test_high_rate_gives_nonzero_probability(self, ce_mod):
         """yhat_upper = 10 CE/s with threshold 1e-6 → probability > 0.5."""
         fc = _make_forecast(rate=10.0)
-        p  = ce_mod.failure_probability(fc, horizon_days=7, threshold_rate=1e-6)
+        p = ce_mod.failure_probability(fc, horizon_days=7, threshold_rate=1e-6)
         assert p > 0.5, f"Expected probability > 0.5 for extreme rate, got {p}"
 
     def test_zero_rate_gives_zero_probability(self, ce_mod):
         """All yhat_upper = 0 → probability = 0.0 (no threshold violations)."""
         now = datetime.now()
-        ts  = [now + timedelta(hours=i) for i in range(168)]
-        fc  = pd.DataFrame({
-            "ds":         ts,
-            "yhat":       [0.0] * 168,
-            "yhat_lower": [0.0] * 168,
-            "yhat_upper": [0.0] * 168,
-        })
+        ts = [now + timedelta(hours=i) for i in range(168)]
+        fc = pd.DataFrame(
+            {
+                "ds": ts,
+                "yhat": [0.0] * 168,
+                "yhat_lower": [0.0] * 168,
+                "yhat_upper": [0.0] * 168,
+            }
+        )
         p = ce_mod.failure_probability(fc, horizon_days=7, threshold_rate=1e-6)
         assert p == pytest.approx(0.0, abs=0.01), f"Expected 0.0, got {p}"
 
     def test_probability_monotone_with_rate(self, ce_mod):
         """Higher CE rate → higher probability (catches sign flip in comparison)."""
-        p_low  = ce_mod.failure_probability(_make_forecast(rate=1e-8), 7, 1e-6)
+        p_low = ce_mod.failure_probability(_make_forecast(rate=1e-8), 7, 1e-6)
         p_high = ce_mod.failure_probability(_make_forecast(rate=1e-2), 7, 1e-6)
-        assert p_high >= p_low, (
-            f"High rate p={p_high:.4f} must be >= low rate p={p_low:.4f}"
-        )
+        assert p_high >= p_low, f"High rate p={p_high:.4f} must be >= low rate p={p_low:.4f}"
 
     def test_probability_uses_yhat_upper_not_yhat(self, ce_mod):
         """
@@ -164,14 +171,16 @@ class TestProbabilityExporterMutations:
         """
         threshold = 1e-6
         now = datetime.now()
-        ts  = [now + timedelta(hours=i) for i in range(168)]
+        ts = [now + timedelta(hours=i) for i in range(168)]
         # yhat below threshold, yhat_upper above
-        fc  = pd.DataFrame({
-            "ds":         ts,
-            "yhat":       [threshold * 0.1] * 168,   # well below
-            "yhat_lower": [0.0] * 168,
-            "yhat_upper": [threshold * 10.0] * 168,  # well above
-        })
+        fc = pd.DataFrame(
+            {
+                "ds": ts,
+                "yhat": [threshold * 0.1] * 168,  # well below
+                "yhat_lower": [0.0] * 168,
+                "yhat_upper": [threshold * 10.0] * 168,  # well above
+            }
+        )
         p = ce_mod.failure_probability(fc, horizon_days=7, threshold_rate=threshold)
         assert p > 0.0, (
             "probability must be > 0 when yhat_upper > threshold, even if yhat < threshold"
@@ -181,6 +190,7 @@ class TestProbabilityExporterMutations:
 # ===========================================================================
 # TestZScoreDetectorMutations (5 tests)
 # ===========================================================================
+
 
 class TestZScoreDetectorMutations:
     """Verify Z-score formula, threshold, and stddev-clamp correctness."""
