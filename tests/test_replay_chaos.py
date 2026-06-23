@@ -8,22 +8,50 @@ divide-by-zero errors.  They run entirely in dry-run mode — no hardware
 required.
 """
 
+from __future__ import annotations
+
 import subprocess
 import sys
 from pathlib import Path
+from typing import List, Optional
 
 import pytest
 
 SCRIPT = Path(__file__).parent.parent / "replay" / "replay_kernel_state.sh"
 SAMPLE_LOG = Path(__file__).parent.parent / "replay" / "example_traces" / "sample_ce_storm.log"
+PARSE_SCRIPT = Path(__file__).parent.parent / "replay" / "parse_edac_trace.py"
+
+# Pre-parse the sample log to JSON (created once, used by all tests)
+_EVENTS_JSON = Path("/tmp/test_replay_chaos_events.json")
+
+
+def _ensure_events_json():
+    """Parse sample log into JSON if not already done."""
+    if not _EVENTS_JSON.exists():
+        subprocess.run(
+            [
+                "python3",
+                str(PARSE_SCRIPT),
+                "--input",
+                str(SAMPLE_LOG),
+                "--output",
+                str(_EVENTS_JSON),
+                "--no-stats",
+            ],
+            check=True,
+            capture_output=True,
+        )
 
 
 def _run_replay(speed: str, extra_args: list[str] | None = None) -> subprocess.CompletedProcess:
+    _ensure_events_json()
     cmd = [
         "bash",
         str(SCRIPT),
-        "--input", str(SAMPLE_LOG),
-        "--speed", speed,
+        "--events",
+        str(_EVENTS_JSON),
+        "--speed",
+        speed,
         "--dry-run",
     ]
     if extra_args:
@@ -32,6 +60,7 @@ def _run_replay(speed: str, extra_args: list[str] | None = None) -> subprocess.C
 
 
 # ── Speed multiplier boundary tests ──────────────────────────────────────
+
 
 class TestSpeedMultiplierBoundaries:
     """Verify speed clamping at extreme values."""
@@ -50,9 +79,11 @@ class TestSpeedMultiplierBoundaries:
         result = _run_replay("0.001")
         # Either exits 0 (dry-run skips actual sleep) or exits non-zero with
         # a clear error — it must not hang indefinitely.
-        assert result.returncode in (0, 1, 2), (
-            f"0.001x speed exited with unexpected code {result.returncode}:\n{result.stderr}"
-        )
+        assert result.returncode in (
+            0,
+            1,
+            2,
+        ), f"0.001x speed exited with unexpected code {result.returncode}:\n{result.stderr}"
 
     def test_speed_1000x_exits_cleanly(self):
         result = _run_replay("1000.0")
@@ -63,9 +94,11 @@ class TestSpeedMultiplierBoundaries:
         result = _run_replay("0")
         # Acceptable: exit 0 (clamped to minimum) or exit 1/2 (invalid input).
         # Not acceptable: crash, hang, or shell arithmetic error.
-        assert result.returncode in (0, 1, 2), (
-            f"Speed=0 exited {result.returncode}:\n{result.stderr}"
-        )
+        assert result.returncode in (
+            0,
+            1,
+            2,
+        ), f"Speed=0 exited {result.returncode}:\n{result.stderr}"
         assert "divide" not in result.stderr.lower(), (
             f"Divide-by-zero detected in stderr:\n{result.stderr}"
         )
@@ -86,34 +119,43 @@ class TestSpeedMultiplierBoundaries:
     def test_speed_very_large_does_not_overflow(self):
         """Extremely large speed multiplier must not cause integer overflow."""
         result = _run_replay("9999999.0")
-        assert result.returncode in (0, 1, 2), (
-            f"Very large speed exited {result.returncode}:\n{result.stderr}"
-        )
+        assert result.returncode in (
+            0,
+            1,
+            2,
+        ), f"Very large speed exited {result.returncode}:\n{result.stderr}"
         assert "overflow" not in result.stderr.lower()
 
 
 # ── Missing input file handling ───────────────────────────────────────────
+
 
 class TestInputEdgeCases:
     """Verify graceful handling of bad input files."""
 
     def test_missing_input_file_exits_nonzero(self):
         cmd = [
-            "bash", str(SCRIPT),
-            "--input", "/nonexistent/path/kern.log",
-            "--speed", "1.0",
+            "bash",
+            str(SCRIPT),
+            "--events",
+            "/nonexistent/path/events.json",
+            "--speed",
+            "1.0",
             "--dry-run",
         ]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
         assert result.returncode != 0
 
     def test_empty_input_file_exits_cleanly(self, tmp_path):
-        empty = tmp_path / "empty.log"
-        empty.write_text("")
+        empty = tmp_path / "empty.json"
+        empty.write_text("[]")
         cmd = [
-            "bash", str(SCRIPT),
-            "--input", str(empty),
-            "--speed", "1.0",
+            "bash",
+            str(SCRIPT),
+            "--events",
+            str(empty),
+            "--speed",
+            "1.0",
             "--dry-run",
         ]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
@@ -123,6 +165,7 @@ class TestInputEdgeCases:
     def test_dry_run_flag_skips_actual_sleep(self):
         """--dry-run must complete quickly even with 0.001x speed."""
         import time
+
         start = time.monotonic()
         result = _run_replay("0.001")
         elapsed = time.monotonic() - start

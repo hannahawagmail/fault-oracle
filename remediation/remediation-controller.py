@@ -8,6 +8,8 @@ Designed to run as a Kubernetes Deployment (not per-node) with access to the
 Kubernetes API via ServiceAccount token.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import os

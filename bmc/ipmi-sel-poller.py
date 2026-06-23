@@ -20,6 +20,8 @@ Metrics:
     ipmi_bmc_collector_last_run_timestamp                  gauge
 """
 
+from __future__ import annotations
+
 import argparse
 import csv
 import io

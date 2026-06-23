@@ -19,6 +19,8 @@ Run:
   pytest tests/test_exporter_integration.py -v
 """
 
+from __future__ import annotations
+
 import os
 import shutil
 import signal
@@ -28,8 +30,9 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator, Optional
+from typing import Optional
 
 import pytest
 
@@ -49,7 +52,7 @@ STARTUP_TIMEOUT_SECS = 5.0
 POLL_INTERVAL_SECS = 0.1
 
 
-def _find_binary() -> Optional[Path]:
+def _find_binary() -> Path | None:
     """Return the path to the hw-fault-exporter binary, or None if not found."""
     for candidate in BINARY_CANDIDATES:
         if candidate.is_file() and os.access(candidate, os.X_OK):
@@ -65,6 +68,7 @@ BINARY_MISSING = BINARY is None
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(scope="module")
 def mock_sysfs_for_integration(tmp_path_factory) -> Path:
     """
@@ -72,6 +76,7 @@ def mock_sysfs_for_integration(tmp_path_factory) -> Path:
     Built once and shared across all tests in this module.
     """
     from conftest import build_mock_sysfs
+
     root = tmp_path_factory.mktemp("integration-sysfs")
     build_mock_sysfs(root)
     return root
@@ -94,8 +99,10 @@ def exporter_process(mock_sysfs_for_integration) -> Generator[subprocess.Popen, 
     sysfs_root = str(mock_sysfs_for_integration)
     cmd = [
         str(BINARY),
-        "--sysfs-root", sysfs_root,
-        "--listen-addr", LISTEN_ADDR,
+        "--sysfs-root",
+        sysfs_root,
+        "--listen-addr",
+        LISTEN_ADDR,
     ]
 
     proc = subprocess.Popen(
@@ -139,6 +146,7 @@ def exporter_process(mock_sysfs_for_integration) -> Generator[subprocess.Popen, 
 # Helper: fetch a URL with retries
 # ---------------------------------------------------------------------------
 
+
 def _fetch(url: str, timeout: float = 5.0) -> str:
     """Fetch a URL and return the response body as a string."""
     req = urllib.request.Request(url)
@@ -160,6 +168,7 @@ def _fetch_status(url: str, timeout: float = 5.0) -> int:
 # Helper: parse Prometheus text format into a dict of metric_name → [samples]
 # ---------------------------------------------------------------------------
 
+
 def parse_prometheus_text(text: str) -> dict:
     """
     Minimal Prometheus text format parser.
@@ -172,6 +181,7 @@ def parse_prometheus_text(text: str) -> dict:
     of specific metrics without depending on a Prometheus client library.
     """
     import re
+
     result: dict = {}
     label_re = re.compile(r'(\w+)="([^"]*)"')
 
@@ -188,8 +198,8 @@ def parse_prometheus_text(text: str) -> dict:
 
         if brace_open != -1 and brace_close != -1:
             metric_name = line[:brace_open]
-            labels_str = line[brace_open + 1:brace_close]
-            rest = line[brace_close + 1:].strip()
+            labels_str = line[brace_open + 1 : brace_close]
+            rest = line[brace_close + 1 :].strip()
         else:
             # No labels
             parts = line.split(None, 1)
@@ -223,6 +233,7 @@ def parse_prometheus_text(text: str) -> dict:
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.skipif(BINARY_MISSING, reason="hw-fault-exporter binary not built")
 class TestExporterMetricsEndpoint:
@@ -262,20 +273,16 @@ class TestExporterMetricsEndpoint:
         # build_info value must always be 1 (Prometheus info metric convention)
         for labels, value in metrics["hw_fault_exporter_build_info"]:
             assert value == 1.0, (
-                f"hw_fault_exporter_build_info must be 1, got {value} "
-                f"(labels={labels})"
+                f"hw_fault_exporter_build_info must be 1, got {value} (labels={labels})"
             )
 
     def test_edac_controller_ce_total_has_mc0(self, exporter_process):
         """edac_controller_ce_total must include a sample for controller=mc0."""
         body = _fetch(f"http://localhost:{LISTEN_PORT}/metrics")
         metrics = parse_prometheus_text(body)
-        assert "edac_controller_ce_total" in metrics, (
-            "edac_controller_ce_total not found"
-        )
+        assert "edac_controller_ce_total" in metrics, "edac_controller_ce_total not found"
         controllers = [
-            labels.get("controller", "")
-            for labels, _ in metrics["edac_controller_ce_total"]
+            labels.get("controller", "") for labels, _ in metrics["edac_controller_ce_total"]
         ]
         assert "mc0" in controllers, (
             f"controller=mc0 not found in edac_controller_ce_total samples. "
@@ -327,9 +334,7 @@ class TestExporterMetricsEndpoint:
         body = _fetch(f"http://localhost:{LISTEN_PORT}/metrics")
         metrics = parse_prometheus_text(body)
         for labels, value in metrics.get("hw_fault_exporter_scrape_duration_seconds", []):
-            assert value >= 0, (
-                f"scrape_duration negative: {value} (labels={labels})"
-            )
+            assert value >= 0, f"scrape_duration negative: {value} (labels={labels})"
 
     def test_metrics_output_is_valid_prometheus_text(self, exporter_process):
         """
@@ -340,8 +345,7 @@ class TestExporterMetricsEndpoint:
         body = _fetch(f"http://localhost:{LISTEN_PORT}/metrics")
         metrics = parse_prometheus_text(body)
         assert len(metrics) >= 5, (
-            f"Expected at least 5 metric families, got {len(metrics)}: "
-            f"{sorted(metrics.keys())}"
+            f"Expected at least 5 metric families, got {len(metrics)}: {sorted(metrics.keys())}"
         )
 
 
@@ -362,6 +366,7 @@ class TestExporterHealthzEndpoint:
     def test_healthz_responds_quickly(self, exporter_process):
         """GET /healthz must respond within 2 seconds."""
         import time
+
         start = time.monotonic()
         _fetch(f"http://localhost:{LISTEN_PORT}/healthz")
         elapsed = time.monotonic() - start
@@ -371,6 +376,7 @@ class TestExporterHealthzEndpoint:
 # ---------------------------------------------------------------------------
 # Standalone smoke test: parse_prometheus_text helper
 # ---------------------------------------------------------------------------
+
 
 class TestParsePrometheusText:
     """Unit tests for the local Prometheus text format parser."""
