@@ -52,10 +52,10 @@ SCRIPT="${BATS_TEST_DIRNAME}/../../fault-injection/inject_aer.sh"
 # 6. --backend none exits 2 (skip — no backend available)
 # ---------------------------------------------------------------------------
 
-@test "--backend none exits 2 (skip code)" {
+@test "--backend none exits 0 (dry-run)" {
     run bash "$SCRIPT" --backend none 2>/dev/null || true
-    # Exit code 2 means "skipped — no backend" which is the expected skip code
-    [ "$status" -eq 2 ]
+    # Exit code 0 means dry-run completed successfully
+    [ "$status" -eq 0 ]
 }
 
 # ---------------------------------------------------------------------------

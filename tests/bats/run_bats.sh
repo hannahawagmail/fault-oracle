@@ -62,7 +62,11 @@ echo ""
 # Collect all .bats files
 # ---------------------------------------------------------------------------
 
-mapfile -t BATS_FILES < <(find "$SCRIPT_DIR" -maxdepth 1 -name "*.bats" | sort)
+# Collect all .bats files (bash 3.2 compatible)
+BATS_FILES=()
+while IFS= read -r f; do
+    BATS_FILES+=("$f")
+done < <(find "$SCRIPT_DIR" -maxdepth 1 -name "*.bats" | sort)
 
 if [[ ${#BATS_FILES[@]} -eq 0 ]]; then
     echo "No .bats files found in $SCRIPT_DIR"
