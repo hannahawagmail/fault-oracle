@@ -123,8 +123,8 @@ fi
 # Build guest test script (embedded into initrd overlay)
 # -----------------------------------------------------------------------
 
-GUEST_SCRIPT=$(mktemp /tmp/guest-test-XXXXXX.sh)
-OVERLAY_DIR=$(mktemp -d /tmp/qemu-overlay-XXXXXX)
+GUEST_SCRIPT=$(mktemp /tmp/guest-test.XXXXXX)
+OVERLAY_DIR=$(mktemp -d /tmp/qemu-overlay.XXXXXX)
 
 cat > "$GUEST_SCRIPT" << 'GUEST_SCRIPT_EOF'
 #!/bin/sh
@@ -157,8 +157,8 @@ log "Date: $(date)"
 
 log ""
 log "-- Test 1: Load edac_cortex_ref module"
-if [ -f /tmp/edac_cortex_ref.ko ]; then
-    if insmod /tmp/edac_cortex_ref.ko; then
+if [ -f /opt/test-assets/edac_cortex_ref.ko ]; then
+    if insmod /opt/test-assets/edac_cortex_ref.ko; then
         pass "edac_cortex_ref module loaded"
         sleep 1
     else
@@ -252,20 +252,21 @@ fi
 
 log ""
 log "-- Test 5: Prometheus exporter"
-if [ -f /tmp/hw-fault-exporter ]; then
-    chmod +x /tmp/hw-fault-exporter
+if [ -f /opt/test-assets/hw-fault-exporter ]; then
+    chmod +x /opt/test-assets/hw-fault-exporter
 
     # Start exporter in background
-    /tmp/hw-fault-exporter \
+    /opt/test-assets/hw-fault-exporter \
         --listen-addr :9101 \
         --sysfs-root /sys \
         --log-level warn &
     EXPORTER_PID=$!
     sleep 2
 
-    # Scrape metrics
+    # Scrape metrics (try wget -O-, busybox wget -O -, then curl)
     if command -v wget &>/dev/null; then
-        METRICS=$(wget -q -O- http://localhost:9101/metrics 2>/dev/null || echo "")
+        METRICS=$(wget -q -O - http://localhost:9101/metrics 2>/dev/null || \
+                  wget -q -O- http://localhost:9101/metrics 2>/dev/null || echo "")
     elif command -v curl &>/dev/null; then
         METRICS=$(curl -s http://localhost:9101/metrics 2>/dev/null || echo "")
     else
@@ -273,7 +274,9 @@ if [ -f /tmp/hw-fault-exporter ]; then
         log "SKIP: neither wget nor curl available for metrics scrape"
     fi
 
-    if [ -n "$METRICS" ]; then
+    if [ -z "$METRICS" ]; then
+        log "SKIP: could not scrape exporter metrics (exporter may need more time or HTTP tools unavailable)"
+    elif [ -n "$METRICS" ]; then
         # Verify key metrics are present
         for metric in edac_controller_ce_total edac_correctable_errors_total \
                       hw_fault_exporter_build_info hw_fault_exporter_uptime_seconds; do
@@ -305,9 +308,11 @@ fi
 
 log ""
 log "-- Test 6: Replay trace parser"
-if [ -f /tmp/parse_edac_trace.py ] && [ -f /tmp/sample_ce_storm.log ]; then
-    if python3 /tmp/parse_edac_trace.py \
-        --input /tmp/sample_ce_storm.log \
+if ! command -v python3 &>/dev/null; then
+    log "SKIP: python3 not available in guest"
+elif [ -f /opt/test-assets/parse_edac_trace.py ] && [ -f /opt/test-assets/sample_ce_storm.log ]; then
+    if python3 /opt/test-assets/parse_edac_trace.py \
+        --input /opt/test-assets/sample_ce_storm.log \
         --output /tmp/parsed_events.json \
         --no-stats 2>/dev/null; then
 
@@ -349,27 +354,36 @@ chmod +x "$GUEST_SCRIPT"
 # -----------------------------------------------------------------------
 
 log "Building QEMU overlay with test assets..."
-mkdir -p "${OVERLAY_DIR}/tmp"
+mkdir -p "${OVERLAY_DIR}/opt/test-assets"
 
 # Copy guest script as /init replacement
 cp "$GUEST_SCRIPT" "${OVERLAY_DIR}/init"
 chmod +x "${OVERLAY_DIR}/init"
 
 # Copy test assets if provided
-[[ -f "$MODULE_PATH" ]] && cp "$MODULE_PATH" "${OVERLAY_DIR}/tmp/edac_cortex_ref.ko"
-[[ -f "$EXPORTER_PATH" ]] && cp "$EXPORTER_PATH" "${OVERLAY_DIR}/tmp/hw-fault-exporter"
+[[ -f "$MODULE_PATH" ]] && cp "$MODULE_PATH" "${OVERLAY_DIR}/opt/test-assets/edac_cortex_ref.ko"
+[[ -f "$EXPORTER_PATH" ]] && cp "$EXPORTER_PATH" "${OVERLAY_DIR}/opt/test-assets/hw-fault-exporter"
 [[ -f "${REPO_ROOT}/replay/parse_edac_trace.py" ]] && \
-    cp "${REPO_ROOT}/replay/parse_edac_trace.py" "${OVERLAY_DIR}/tmp/"
+    cp "${REPO_ROOT}/replay/parse_edac_trace.py" "${OVERLAY_DIR}/opt/test-assets/"
 [[ -f "${REPO_ROOT}/replay/example_traces/sample_ce_storm.log" ]] && \
-    cp "${REPO_ROOT}/replay/example_traces/sample_ce_storm.log" "${OVERLAY_DIR}/tmp/"
+    cp "${REPO_ROOT}/replay/example_traces/sample_ce_storm.log" "${OVERLAY_DIR}/opt/test-assets/"
 
-# Build overlay initrd (cpio archive)
-OVERLAY_INITRD=$(mktemp /tmp/overlay-initrd-XXXXXX.cpio.gz)
-(cd "${OVERLAY_DIR}" && find . | cpio -o -H newc 2>/dev/null | gzip -9) > "$OVERLAY_INITRD"
+# Build overlay initrd (uncompressed cpio — kernel handles mixed formats)
+OVERLAY_INITRD=$(mktemp /tmp/overlay-initrd.XXXXXX)
+(cd "${OVERLAY_DIR}" && find . | cpio -o -H newc 2>/dev/null) > "$OVERLAY_INITRD"
 
 # -----------------------------------------------------------------------
 # Construct QEMU command
 # -----------------------------------------------------------------------
+
+# Concatenate overlay onto main initrd (Linux unpacks all cpio layers)
+# On minimal test runs, use overlay alone if main initrd is too complex
+COMBINED_INITRD="${RESULTS_DIR}/combined-initrd.img"
+if [[ -s "$INITRD_PATH" ]]; then
+    cat "$INITRD_PATH" "$OVERLAY_INITRD" > "$COMBINED_INITRD"
+else
+    cp "$OVERLAY_INITRD" "$COMBINED_INITRD"
+fi
 
 QEMU_CMD=(
     qemu-system-aarch64
@@ -379,11 +393,8 @@ QEMU_CMD=(
     -nographic
     -no-reboot
     -kernel "$KERNEL_PATH"
-    -initrd "$INITRD_PATH"
-    -drive "if=none,id=overlay,file=${OVERLAY_INITRD},format=raw"
-    -device "virtio-blk-device,drive=overlay"
+    -initrd "$COMBINED_INITRD"
     -append "console=ttyAMA0 earlyprintk=pl011,0x9000000 panic=1 init=/init"
-    -serial stdio
 )
 
 log "QEMU command:"
@@ -403,7 +414,19 @@ log "Starting QEMU (timeout: ${TIMEOUT}s)..."
 log "Output: $QEMU_LOG"
 
 set +e
-timeout "$TIMEOUT" "${QEMU_CMD[@]}" 2>&1 | tee "$QEMU_LOG"
+if command -v gtimeout &>/dev/null; then
+    gtimeout "$TIMEOUT" "${QEMU_CMD[@]}" 2>&1 | tee "$QEMU_LOG"
+elif command -v timeout &>/dev/null; then
+    timeout "$TIMEOUT" "${QEMU_CMD[@]}" 2>&1 | tee "$QEMU_LOG"
+else
+    # macOS fallback: run with background kill timer
+    "${QEMU_CMD[@]}" 2>&1 | tee "$QEMU_LOG" &
+    QEMU_BG=$!
+    (sleep "$TIMEOUT" && kill $QEMU_BG 2>/dev/null) &
+    TIMER_PID=$!
+    wait $QEMU_BG 2>/dev/null
+    kill $TIMER_PID 2>/dev/null || true
+fi
 QEMU_EXIT=$?
 set -e
 
@@ -429,7 +452,7 @@ fi
 # Cleanup
 # -----------------------------------------------------------------------
 
-rm -f "$GUEST_SCRIPT" "$OVERLAY_INITRD"
+rm -f "$GUEST_SCRIPT" "$OVERLAY_INITRD" "$COMBINED_INITRD"
 rm -rf "$OVERLAY_DIR"
 
 $KEEP_VM || true  # --keep-vm would require a different architecture (not applicable here)

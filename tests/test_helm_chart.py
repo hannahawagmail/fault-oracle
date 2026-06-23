@@ -10,9 +10,7 @@ import yaml
 
 CHART_DIR = Path(__file__).resolve().parent.parent / "deploy" / "helm"
 
-helm_available = pytest.mark.skipif(
-    shutil.which("helm") is None, reason="helm CLI not installed"
-)
+helm_available = pytest.mark.skipif(shutil.which("helm") is None, reason="helm CLI not installed")
 
 
 # --- Helm CLI tests (skipped if helm not installed) ---
@@ -20,9 +18,7 @@ helm_available = pytest.mark.skipif(
 
 @helm_available
 def test_helm_lint():
-    result = subprocess.run(
-        ["helm", "lint", str(CHART_DIR)], capture_output=True, text=True
-    )
+    result = subprocess.run(["helm", "lint", str(CHART_DIR)], capture_output=True, text=True)
     assert result.returncode == 0, f"helm lint failed:\n{result.stderr}"
 
 
