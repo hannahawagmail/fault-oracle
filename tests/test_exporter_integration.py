@@ -53,10 +53,19 @@ POLL_INTERVAL_SECS = 0.1
 
 
 def _find_binary() -> Path | None:
-    """Return the path to the hw-fault-exporter binary, or None if not found."""
+    """Return the path to the hw-fault-exporter binary, or None if not runnable."""
     for candidate in BINARY_CANDIDATES:
         if candidate.is_file() and os.access(candidate, os.X_OK):
-            return candidate
+            # Verify it's actually executable on this platform (not cross-compiled)
+            try:
+                subprocess.run(
+                    [str(candidate), "--help"],
+                    capture_output=True,
+                    timeout=5,
+                )
+                return candidate
+            except (OSError, subprocess.TimeoutExpired):
+                continue
     return None
 
 
