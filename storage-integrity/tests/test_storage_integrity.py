@@ -12,7 +12,10 @@ Run with:
 import os
 import re
 import subprocess
+import sys
 import pytest
+
+IS_LINUX = sys.platform.startswith('linux')
 
 # ---------------------------------------------------------------------------
 # Path helpers
@@ -147,6 +150,7 @@ class TestOverlayfsSetup:
         combined = result.stdout + result.stderr
         assert len(combined.strip()) > 0, "No output from --status"
 
+    @pytest.mark.skipif(not IS_LINUX, reason='Requires Linux')
     def test_dry_run_does_not_write_proc_mounts(self):
         """--apply --dry-run must not modify /proc/mounts."""
         mtime_before = os.path.getmtime("/proc/mounts")
@@ -210,6 +214,7 @@ class TestOverlayfsSetup:
 # Group 5: filesystem-check.sh behavior
 # ---------------------------------------------------------------------------
 
+@pytest.mark.skipif(not IS_LINUX, reason='Requires Linux')
 class TestFilesystemCheck:
     """Tests for filesystem-check.sh."""
 
@@ -456,6 +461,7 @@ class TestOverlayfsSetupExtended:
         assert result.returncode != 0
 
 
+@pytest.mark.skipif(not IS_LINUX, reason='Requires Linux')
 class TestFilesystemCheckExtended:
     """Extended filesystem-check.sh behavioral tests."""
 

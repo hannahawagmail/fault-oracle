@@ -276,6 +276,7 @@ class TestOobProtocolDoc:
 # Extended connection-monitor.sh behavioral tests
 # ===========================================================================
 
+@pytest.mark.skipif(not sys.platform.startswith('linux'), reason='Requires Linux network tools')
 class TestConnectionMonitorExtended:
     """Deeper behavioral tests for connection-monitor.sh."""
 

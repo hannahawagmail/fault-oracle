@@ -299,6 +299,7 @@ class TestPanicConfig:
         assert "kernel.panic" in result.stdout, \
             "Expected 'kernel.panic' in --status output"
 
+    @pytest.mark.skipif(not IS_LINUX, reason="Requires Linux")
     def test_dry_run_apply_exits_0(self):
         """--dry-run --apply should print sysctl params and exit 0."""
         result = run([
@@ -309,6 +310,7 @@ class TestPanicConfig:
         assert result.returncode == 0, \
             f"panic-config.sh --dry-run --apply failed:\n{result.stderr}"
 
+    @pytest.mark.skipif(not IS_LINUX, reason="Requires Linux")
     def test_dry_run_shows_kernel_panic(self):
         result = run([
             "bash", str(SCRIPTS["panic_config"]),
@@ -318,6 +320,7 @@ class TestPanicConfig:
         assert "kernel.panic" in combined, \
             "Expected 'kernel.panic' in dry-run output"
 
+    @pytest.mark.skipif(not IS_LINUX, reason="Requires Linux")
     def test_dry_run_shows_panic_on_oops(self):
         result = run([
             "bash", str(SCRIPTS["panic_config"]),
@@ -326,6 +329,7 @@ class TestPanicConfig:
         combined = result.stdout + result.stderr
         assert "panic_on_oops" in combined
 
+    @pytest.mark.skipif(not IS_LINUX, reason="Requires Linux")
     def test_dry_run_shows_softlockup_panic(self):
         result = run([
             "bash", str(SCRIPTS["panic_config"]),
@@ -378,6 +382,7 @@ class TestOomTuning:
         assert "oom_score" in combined.lower() or "OOM" in combined, \
             "Expected OOM score information in --status output"
 
+    @pytest.mark.skipif(not IS_LINUX, reason="Requires Linux")
     def test_dry_run_protect_exits_0(self):
         result = run([
             "bash", str(SCRIPTS["oom_tuning"]),
@@ -385,6 +390,7 @@ class TestOomTuning:
         ])
         assert result.returncode == 0
 
+    @pytest.mark.skipif(not IS_LINUX, reason="Requires Linux")
     def test_dry_run_deprioritize_exits_0(self):
         result = run([
             "bash", str(SCRIPTS["oom_tuning"]),
@@ -407,6 +413,7 @@ class TestOomTuning:
         combined = result.stdout + result.stderr
         assert "MemoryMax=256M" in combined or "256" in combined
 
+    @pytest.mark.skipif(not IS_LINUX, reason="Requires Linux")
     def test_dry_run_apply_defaults_exits_0(self):
         result = run([
             "bash", str(SCRIPTS["oom_tuning"]),
@@ -545,6 +552,7 @@ class TestOomTuningExtended:
         # Script should warn about unknown option
         assert "Unknown" in combined or "unknown" in combined or result.returncode != 0
 
+    @pytest.mark.skipif(not IS_LINUX, reason="Requires Linux")
     def test_apply_defaults_exits_0(self):
         """--apply-defaults should succeed even without root (warns but doesn't fail)."""
         result = self._run(["--apply-defaults"])
@@ -579,6 +587,7 @@ class TestPanicConfigExtended:
     def _run(self, args, timeout=5):
         return run(["bash", str(SCRIPTS["panic_config"])] + args, timeout=timeout)
 
+    @pytest.mark.skipif(not IS_LINUX, reason="Requires Linux")
     def test_dry_run_status_exits_0(self):
         result = self._run(["--status"])
         assert result.returncode == 0
@@ -588,21 +597,25 @@ class TestPanicConfigExtended:
         combined = result.stdout + result.stderr
         assert "panic" in combined.lower() or "kernel" in combined.lower() or "sysctl" in combined.lower()
 
+    @pytest.mark.skipif(not IS_LINUX, reason="Requires Linux")
     def test_dry_run_shows_sysctl_conf_path(self):
         result = self._run(["--dry-run", "--apply"])
         combined = result.stdout + result.stderr
         assert ".conf" in combined or "sysctl" in combined.lower()
 
+    @pytest.mark.skipif(not IS_LINUX, reason="Requires Linux")
     def test_dry_run_shows_would_execute(self):
         result = self._run(["--dry-run", "--apply"])
         combined = result.stdout + result.stderr
         assert "sysctl" in combined.lower() or "would" in combined.lower() or "dry" in combined.lower()
 
+    @pytest.mark.skipif(not IS_LINUX, reason="Requires Linux")
     def test_reboot_delay_flag_accepted(self):
         """--reboot-delay should be accepted and reflected in dry-run output."""
         result = self._run(["--dry-run", "--apply", "--reboot-delay", "30"])
         assert result.returncode == 0
 
+    @pytest.mark.skipif(not IS_LINUX, reason="Requires Linux")
     def test_sysctl_conf_path_present(self):
         """Generated config should reference kernel.panic sysctl."""
         result = self._run(["--dry-run", "--apply"])

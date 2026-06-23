@@ -475,15 +475,21 @@ class TestCSource:
         assert "STOPPING=1" in content, \
             "hw-fault-monitor.c must send STOPPING=1 on SIGTERM"
 
-    @pytest.mark.skipif(not shutil.which("gcc"), reason="gcc not available")
+    @pytest.mark.skipif(
+        sys.platform != "linux" and not shutil.which("aarch64-linux-gnu-gcc"),
+        reason="gcc cross-compiler not available (non-Linux host)",
+    )
     def test_gcc_syntax_only(self):
         """
         gcc -fsyntax-only: parses and type-checks the C source without
         producing object code. Catches syntax errors, undeclared identifiers,
         and type mismatches. Does NOT require the target libraries.
         """
+        gcc = shutil.which("aarch64-linux-gnu-gcc") or shutil.which("gcc")
+        if not gcc:
+            pytest.skip("gcc not available")
         result = subprocess.run(
-            ["gcc", "-fsyntax-only", "-Wall", "-Wextra", C_SOURCE],
+            [gcc, "-fsyntax-only", "-Wall", "-Wextra", C_SOURCE],
             capture_output=True,
             text=True,
         )
