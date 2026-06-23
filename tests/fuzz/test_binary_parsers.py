@@ -6,14 +6,14 @@ Goal: no input (valid or garbage) causes an unhandled exception.
 Parsers must return a valid result or raise ValueError/struct.error —
 never AttributeError, IndexError, KeyError, or similar.
 """
-import importlib.util
+
 import csv
+import importlib.util
 import struct
 import sys
 from pathlib import Path
 
-import pytest
-from hypothesis import given, settings, HealthCheck
+from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 # ---------------------------------------------------------------------------
@@ -22,18 +22,19 @@ from hypothesis import strategies as st
 
 REPO = Path(__file__).parent.parent.parent
 
+
 def _import(name, path):
     spec = importlib.util.spec_from_file_location(name, path)
-    mod  = importlib.util.module_from_spec(spec)
+    mod = importlib.util.module_from_spec(spec)
     sys.modules[name] = mod
     spec.loader.exec_module(mod)
     return mod
 
 
 # Lazy module references — loaded on first use
-_bert    = None
-_ib      = None
-_pmem    = None
+_bert = None
+_ib = None
+_pmem = None
 _sel_mod = None
 
 
@@ -69,6 +70,7 @@ def _bmc_sel_mod():
 # 1. BERT binary parser — parse_cper_records / parse_bert_table
 # ---------------------------------------------------------------------------
 
+
 @given(st.binary(min_size=0, max_size=512))
 @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
 def test_bert_cper_parser_never_crashes(data):
@@ -98,6 +100,7 @@ def test_bert_table_parser_never_crashes(data):
 # 2. EDAC counter file parser — int(s.strip()) pattern
 # ---------------------------------------------------------------------------
 
+
 @given(st.text(min_size=0, max_size=50))
 @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
 def test_edac_counter_parse_handles_any_string(s):
@@ -115,6 +118,7 @@ def test_edac_counter_parse_handles_any_string(s):
 # ---------------------------------------------------------------------------
 # 3. IPMI SEL CSV line parser
 # ---------------------------------------------------------------------------
+
 
 @given(st.lists(st.text(max_size=30), min_size=0, max_size=8))
 @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
@@ -149,14 +153,17 @@ def test_perfquery_parser_never_crashes(output):
 # 5. ndctl JSON parser — parse_health_output
 # ---------------------------------------------------------------------------
 
-@given(st.one_of(
-    st.just(""),
-    st.just("[]"),
-    st.just("{}"),
-    st.just("[null]"),
-    st.text(max_size=100),
-    st.binary(max_size=50).map(lambda b: b.decode("utf-8", errors="replace")),
-))
+
+@given(
+    st.one_of(
+        st.just(""),
+        st.just("[]"),
+        st.just("{}"),
+        st.just("[null]"),
+        st.text(max_size=100),
+        st.binary(max_size=50).map(lambda b: b.decode("utf-8", errors="replace")),
+    )
+)
 @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
 def test_ndctl_json_parser_handles_garbage(output):
     """parse_health_output must always return a list (never crash)."""

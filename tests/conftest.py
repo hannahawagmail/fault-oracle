@@ -36,8 +36,8 @@ MOCK_TOPOLOGY = {
         "channels": 2,
         "mc_name": "cortex-a72-l2-ecc",
         "size_mb": 8192,
-        "ce_counts": [[3, 0], [0, 1]],   # [csrow][channel] CE counts
-        "ue_counts": [0, 0],              # [csrow] UE counts
+        "ce_counts": [[3, 0], [0, 1]],  # [csrow][channel] CE counts
+        "ue_counts": [0, 0],  # [csrow] UE counts
     },
     # Memory controller 1: 2 csrows × 2 channels (clean)
     "mc1": {
@@ -54,31 +54,66 @@ MOCK_AER_DEVICES = {
     # PCIe device 0000:01:00.0 — has a few BadTLP events
     "0000:01:00.0": {
         "correctable": {
-            "RxErr": 0, "BadTLP": 3, "BadDLLP": 0, "Rollover": 0,
-            "Timeout": 0, "NonFatalErr": 0, "CorrIntErr": 0, "HeaderOF": 0,
+            "RxErr": 0,
+            "BadTLP": 3,
+            "BadDLLP": 0,
+            "Rollover": 0,
+            "Timeout": 0,
+            "NonFatalErr": 0,
+            "CorrIntErr": 0,
+            "HeaderOF": 0,
             "TOTAL_ERR_COR": 3,
         },
         "nonfatal": {
-            "Undefined": 0, "BlockedTLP": 0, "AtomicOpBlocked": 0,
-            "TLPBlockedErr": 0, "PoisonTLPBlocked": 0, "ViErr": 0,
-            "MCBlockedTLP": 0, "SurpriseDownErr": 0, "PoisonedTLP": 0,
-            "FlowControl": 0, "CmpltTimeout": 0, "CmpltAbort": 0,
-            "UnxCmplt": 0, "RxOF": 0, "MalfTLP": 0, "ECRC": 0,
-            "UnsupReq": 0, "ACSViol": 0, "UncorrIntErr": 0,
+            "Undefined": 0,
+            "BlockedTLP": 0,
+            "AtomicOpBlocked": 0,
+            "TLPBlockedErr": 0,
+            "PoisonTLPBlocked": 0,
+            "ViErr": 0,
+            "MCBlockedTLP": 0,
+            "SurpriseDownErr": 0,
+            "PoisonedTLP": 0,
+            "FlowControl": 0,
+            "CmpltTimeout": 0,
+            "CmpltAbort": 0,
+            "UnxCmplt": 0,
+            "RxOF": 0,
+            "MalfTLP": 0,
+            "ECRC": 0,
+            "UnsupReq": 0,
+            "ACSViol": 0,
+            "UncorrIntErr": 0,
             "TOTAL_ERR_UNCOR": 0,
         },
         "fatal": {
-            "Undefined": 0, "BlockedTLP": 0, "DLP": 0, "SDES": 0,
-            "TLP": 0, "FCP": 0, "CmpltTO": 0, "CA": 0, "UC": 0,
-            "RxOF": 0, "MALFTLP": 0, "ECRC": 0, "UR": 0,
+            "Undefined": 0,
+            "BlockedTLP": 0,
+            "DLP": 0,
+            "SDES": 0,
+            "TLP": 0,
+            "FCP": 0,
+            "CmpltTO": 0,
+            "CA": 0,
+            "UC": 0,
+            "RxOF": 0,
+            "MALFTLP": 0,
+            "ECRC": 0,
+            "UR": 0,
             "TOTAL_ERR_UNCOR": 0,
         },
     },
     # PCIe device 0000:02:00.0 — clean
     "0000:02:00.0": {
         "correctable": {
-            "RxErr": 0, "BadTLP": 0, "BadDLLP": 0, "Rollover": 0,
-            "Timeout": 0, "NonFatalErr": 0, "CorrIntErr": 0, "HeaderOF": 0,
+            "RxErr": 0,
+            "BadTLP": 0,
+            "BadDLLP": 0,
+            "Rollover": 0,
+            "Timeout": 0,
+            "NonFatalErr": 0,
+            "CorrIntErr": 0,
+            "HeaderOF": 0,
             "TOTAL_ERR_COR": 0,
         },
         "nonfatal": {"TOTAL_ERR_UNCOR": 0},
@@ -110,9 +145,9 @@ def build_mock_sysfs(root: Path) -> None:
         _write(mc_dir / "size_mb", str(mc["size_mb"]) + "\n")
 
         # Compute controller-level totals
-        total_ce = sum(mc["ce_counts"][r][c]
-                       for r in range(mc["csrows"])
-                       for c in range(mc["channels"]))
+        total_ce = sum(
+            mc["ce_counts"][r][c] for r in range(mc["csrows"]) for c in range(mc["channels"])
+        )
         total_ue = sum(mc["ue_counts"])
         _write(mc_dir / "ce_count", str(total_ce) + "\n")
         _write(mc_dir / "ue_count", str(total_ue) + "\n")
@@ -137,9 +172,11 @@ def build_mock_sysfs(root: Path) -> None:
         dev_dir.mkdir(parents=True, exist_ok=True)
 
         for error_class, errors in dev.items():
-            fname_map = {"correctable": "aer_dev_correctable",
-                         "nonfatal": "aer_dev_nonfatal",
-                         "fatal": "aer_dev_fatal"}
+            fname_map = {
+                "correctable": "aer_dev_correctable",
+                "nonfatal": "aer_dev_nonfatal",
+                "fatal": "aer_dev_fatal",
+            }
             lines = "\n".join(f"{k} {v}" for k, v in errors.items()) + "\n"
             _write(dev_dir / fname_map[error_class], lines)
 
@@ -153,6 +190,7 @@ def build_mock_sysfs(root: Path) -> None:
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(scope="session")
 def mock_sysfs(tmp_path_factory) -> Path:
@@ -214,6 +252,7 @@ def sample_events(sample_trace_path) -> list:
     Returns a list of HardwareEvent objects.
     """
     from parse_edac_trace import TraceParser
+
     parser = TraceParser()
     with open(sample_trace_path) as f:
         return parser.parse_file(f)
@@ -254,6 +293,7 @@ def zero_sysfs(tmp_path) -> Path:
 # ---------------------------------------------------------------------------
 # Collector factory helpers (used by exporter unit tests)
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def edac_collector(mock_sysfs):
@@ -316,7 +356,8 @@ class _MockEDACCollector:
                 continue
             # Only process directories named mc<N>
             import re as _re
-            if not _re.match(r'^mc\d+$', mc_dir.name):
+
+            if not _re.match(r"^mc\d+$", mc_dir.name):
                 continue
 
             mc_name = mc_dir.name
@@ -337,7 +378,7 @@ class _MockEDACCollector:
             for csrow_dir in sorted(mc_dir.iterdir()):
                 if not csrow_dir.is_dir():
                     continue
-                if not _re.match(r'^csrow\d+$', csrow_dir.name):
+                if not _re.match(r"^csrow\d+$", csrow_dir.name):
                     continue
 
                 csrow_name = csrow_dir.name

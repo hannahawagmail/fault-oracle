@@ -68,12 +68,15 @@ class TestMCECounterValues:
 class TestMCESeverityMapping:
     """Test the MCE severity decoding logic."""
 
-    @pytest.mark.parametrize("status_hex,expected_severity", [
-        (0x9400004000800400, "corrected"),   # VAL=1, UC=0 → corrected
-        (0xBC00000000000402, "uncorrected"), # VAL=1, UC=1 → uncorrected
-        (0xBE20000000000402, "panic"),       # VAL=1, UC=1, PCC=1 → panic
-        (0x0000000000000000, "corrected"),   # status=0 → default corrected
-    ])
+    @pytest.mark.parametrize(
+        "status_hex,expected_severity",
+        [
+            (0x9400004000800400, "corrected"),  # VAL=1, UC=0 → corrected
+            (0xBC00000000000402, "uncorrected"),  # VAL=1, UC=1 → uncorrected
+            (0xBE20000000000402, "panic"),  # VAL=1, UC=1, PCC=1 → panic
+            (0x0000000000000000, "corrected"),  # status=0 → default corrected
+        ],
+    )
     def test_decode_mce_severity(self, status_hex, expected_severity):
         """Verify severity decoding from STATUS register bits."""
         severity = _decode_mce_severity(status_hex)
@@ -145,6 +148,7 @@ class TestMCECollectorRobustness:
 
 import os
 
+
 def _decode_mce_severity(status: int) -> str:
     """
     Python port of collectors/mce.go:decodeMCESeverity().
@@ -153,7 +157,7 @@ def _decode_mce_severity(status: int) -> str:
       Bit 61: UC  (uncorrected)
       Bit 57: PCC (processor context corrupt → panic)
     """
-    BIT_UC  = 1 << 61
+    BIT_UC = 1 << 61
     BIT_PCC = 1 << 57
     if status & BIT_PCC:
         return "panic"

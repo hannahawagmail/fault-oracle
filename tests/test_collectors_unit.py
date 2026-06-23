@@ -19,14 +19,14 @@ Coverage:
 import os
 import time
 from pathlib import Path
-from unittest.mock import patch, mock_open
+from unittest.mock import mock_open, patch
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # readUint64 — Python port for testing the parsing logic
 # ---------------------------------------------------------------------------
+
 
 def read_uint64(path: Path) -> int:
     """
@@ -191,10 +191,20 @@ class TestParseAERFile:
         parsed = self._parse(tmp_path, content)
         assert parsed["BadTLP"] == count
 
-    @pytest.mark.parametrize("error_name", [
-        "RxErr", "BadTLP", "BadDLLP", "Rollover", "Timeout",
-        "NonFatalErr", "CorrIntErr", "HeaderOF", "TOTAL_ERR_COR"
-    ])
+    @pytest.mark.parametrize(
+        "error_name",
+        [
+            "RxErr",
+            "BadTLP",
+            "BadDLLP",
+            "Rollover",
+            "Timeout",
+            "NonFatalErr",
+            "CorrIntErr",
+            "HeaderOF",
+            "TOTAL_ERR_COR",
+        ],
+    )
     def test_all_standard_correctable_error_names(self, tmp_path, error_name):
         content = f"{error_name} 1\n"
         parsed = self._parse(tmp_path, content)
@@ -241,27 +251,24 @@ class TestMetricDescriptors:
                 )
 
     def test_aer_metrics_have_total_suffix(self):
-        counter_metrics = [m for m in self.AER_METRICS
-                           if not m.endswith("_total") and "devices" not in m]
+        counter_metrics = [
+            m for m in self.AER_METRICS if not m.endswith("_total") and "devices" not in m
+        ]
         assert counter_metrics == [], (
             f"AER counter metrics missing _total suffix: {counter_metrics}"
         )
 
     def test_no_metric_starts_with_underscore(self):
-        all_metrics = (self.EDAC_METRICS + self.AER_METRICS +
-                       self.MCE_METRICS + self.SELF_METRICS)
+        all_metrics = self.EDAC_METRICS + self.AER_METRICS + self.MCE_METRICS + self.SELF_METRICS
         for metric in all_metrics:
             assert not metric.startswith("_"), (
                 f"Metric name '{metric}' must not start with underscore"
             )
 
     def test_metric_names_use_underscores_not_hyphens(self):
-        all_metrics = (self.EDAC_METRICS + self.AER_METRICS +
-                       self.MCE_METRICS + self.SELF_METRICS)
+        all_metrics = self.EDAC_METRICS + self.AER_METRICS + self.MCE_METRICS + self.SELF_METRICS
         for metric in all_metrics:
-            assert "-" not in metric, (
-                f"Metric name '{metric}' must use underscores, not hyphens"
-            )
+            assert "-" not in metric, f"Metric name '{metric}' must use underscores, not hyphens"
 
     def test_edac_labels_bounded(self):
         """EDAC label cardinality must be bounded by hardware topology."""
@@ -301,6 +308,7 @@ class TestCollectorScrapeHealth:
     def test_scrape_error_count_zero_on_clean_sysfs(self, mock_sysfs):
         """Error count must be 0 when all sysfs files are readable."""
         from conftest import _MockEDACCollector
+
         collector = _MockEDACCollector(str(mock_sysfs))
         result = collector.collect_raw()
         # Verify no KeyError or missing data (proxy for error count = 0)
@@ -323,6 +331,7 @@ class TestCollectorScrapeHealth:
         # ch0_ce_count intentionally omitted
 
         from conftest import _MockEDACCollector
+
         collector = _MockEDACCollector(str(tmp_path))
         result = collector.collect_raw()
         # Collector should still return partial data, not crash
@@ -362,6 +371,7 @@ class TestEdacCollectorMultiController:
 
     def test_all_controllers_scraped(self, mock_sysfs, mock_topology):
         from conftest import _MockEDACCollector
+
         collector = _MockEDACCollector(str(mock_sysfs))
         result = collector.collect_raw()
         for mc_name in mock_topology:
@@ -370,6 +380,7 @@ class TestEdacCollectorMultiController:
     def test_controller_counts_independent(self, mock_sysfs, mock_topology):
         """CE counts on mc0 must not bleed into mc1."""
         from conftest import _MockEDACCollector
+
         collector = _MockEDACCollector(str(mock_sysfs))
         result = collector.collect_raw()
 
@@ -390,6 +401,7 @@ class TestEdacCollectorMultiController:
 
     def test_clean_controller_has_zero_ce(self, mock_sysfs, mock_topology):
         from conftest import _MockEDACCollector
+
         collector = _MockEDACCollector(str(mock_sysfs))
         result = collector.collect_raw()
 
@@ -400,6 +412,7 @@ class TestEdacCollectorMultiController:
 
     def test_csrow_count_per_controller(self, mock_sysfs, mock_topology):
         from conftest import _MockEDACCollector
+
         collector = _MockEDACCollector(str(mock_sysfs))
         result = collector.collect_raw()
 
@@ -411,6 +424,7 @@ class TestEdacCollectorMultiController:
 
     def test_channel_count_per_csrow(self, mock_sysfs, mock_topology):
         from conftest import _MockEDACCollector
+
         collector = _MockEDACCollector(str(mock_sysfs))
         result = collector.collect_raw()
 

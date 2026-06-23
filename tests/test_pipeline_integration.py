@@ -29,11 +29,12 @@ REPLAY_SH = REPLAY_DIR / "replay_kernel_state.sh"
 SAMPLE_LOG = REPLAY_DIR / "example_traces" / "sample_ce_storm.log"
 
 sys.path.insert(0, str(REPLAY_DIR))
-from parse_edac_trace import TraceParser, HardwareEvent
+from parse_edac_trace import HardwareEvent, TraceParser
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def parse_log_file(path: Path, event_types=None) -> list[HardwareEvent]:
     """Parse a log file using TraceParser directly."""
@@ -45,10 +46,7 @@ def parse_log_file(path: Path, event_types=None) -> list[HardwareEvent]:
 
 def parse_to_json(log_path: Path, extra_args=None) -> list[dict]:
     """Run parse_edac_trace.py via subprocess, return parsed JSON."""
-    cmd = [sys.executable, str(PARSER),
-           "--input", str(log_path),
-           "--output", "-",
-           "--no-stats"]
+    cmd = [sys.executable, str(PARSER), "--input", str(log_path), "--output", "-", "--no-stats"]
     if extra_args:
         cmd.extend(extra_args)
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
@@ -61,10 +59,23 @@ def parse_to_json(log_path: Path, extra_args=None) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 REQUIRED_FIELDS = {
-    "seq", "timestamp_str", "timestamp_ns", "monotonic_s",
-    "event_type", "subsystem", "controller", "csrow", "channel",
-    "count", "page", "offset", "grain", "syndrome",
-    "pci_device", "aer_error_type", "raw_message",
+    "seq",
+    "timestamp_str",
+    "timestamp_ns",
+    "monotonic_s",
+    "event_type",
+    "subsystem",
+    "controller",
+    "csrow",
+    "channel",
+    "count",
+    "page",
+    "offset",
+    "grain",
+    "syndrome",
+    "pci_device",
+    "aer_error_type",
+    "raw_message",
 }
 
 VALID_EVENT_TYPES = {"CE", "UE", "AER_CE", "AER_UE", "MCE"}
@@ -74,6 +85,7 @@ VALID_SUBSYSTEMS = {"EDAC", "AER", "MCE"}
 # ---------------------------------------------------------------------------
 # Sample log parsing
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.skipif(not SAMPLE_LOG.exists(), reason="sample_ce_storm.log not found")
 class TestSampleLogParsing:
@@ -127,6 +139,7 @@ class TestSampleLogParsing:
 # JSON schema validation
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.skipif(not SAMPLE_LOG.exists(), reason="sample_ce_storm.log not found")
 class TestJSONSchemaValidation:
     """JSON output from the parser must conform to the documented schema."""
@@ -149,13 +162,11 @@ class TestJSONSchemaValidation:
 
     def test_event_type_is_valid(self, events_json):
         for ev in events_json:
-            assert ev["event_type"] in VALID_EVENT_TYPES, \
-                f"Invalid event_type: {ev['event_type']}"
+            assert ev["event_type"] in VALID_EVENT_TYPES, f"Invalid event_type: {ev['event_type']}"
 
     def test_subsystem_is_valid(self, events_json):
         for ev in events_json:
-            assert ev["subsystem"] in VALID_SUBSYSTEMS, \
-                f"Invalid subsystem: {ev['subsystem']}"
+            assert ev["subsystem"] in VALID_SUBSYSTEMS, f"Invalid subsystem: {ev['subsystem']}"
 
     def test_seq_is_int(self, events_json):
         for ev in events_json:
@@ -188,6 +199,7 @@ class TestJSONSchemaValidation:
 # CLI filter integration
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.skipif(not SAMPLE_LOG.exists(), reason="sample_ce_storm.log not found")
 class TestCLIFilterIntegration:
     """CLI --event-types filter integrates correctly with the JSON output."""
@@ -207,8 +219,8 @@ class TestCLIFilterIntegration:
 
     def test_multi_type_counts_add_up(self):
         all_events = parse_to_json(SAMPLE_LOG)
-        ce_events  = parse_to_json(SAMPLE_LOG, ["--event-types", "CE"])
-        ue_events  = parse_to_json(SAMPLE_LOG, ["--event-types", "UE"])
+        ce_events = parse_to_json(SAMPLE_LOG, ["--event-types", "CE"])
+        ue_events = parse_to_json(SAMPLE_LOG, ["--event-types", "UE"])
         mce_events = parse_to_json(SAMPLE_LOG, ["--event-types", "MCE"])
         aer_events = parse_to_json(SAMPLE_LOG, ["--event-types", "AER_CE,AER_UE"])
         total = len(ce_events) + len(ue_events) + len(mce_events) + len(aer_events)
@@ -223,16 +235,19 @@ class TestCLIFilterIntegration:
 # Multi-log synthetic pipeline
 # ---------------------------------------------------------------------------
 
+
 class TestSyntheticPipeline:
     """Parse synthetic log → validate JSON → replay dry-run."""
 
-    MULTI_EVENT_LOG = "\n".join([
-        "[   10.001234] EDAC MC0: 1 CE on DIMM_0_CH0 (mc:0 page:0x00012ab offset:0x0 grain:8 syndrome:0x0000000000000001)",
-        "[   10.001235] EDAC MC0: CE error on memory module DIMM_0_CH0 (csrow:0 channel:0)",
-        "[   47.234567] EDAC MC0: 1 UE on DIMM_0_CH0 (mc:0 page:0x00012ab offset:0x50 grain:8 syndrome:0x0000000000000000)",
-        "[   55.123456] mce: [Hardware Error]: Machine check events logged",
-        "[   88.000000] pcieport 0000:00:01.0: AER: Corrected error received: 0000:01:00.0",
-    ])
+    MULTI_EVENT_LOG = "\n".join(
+        [
+            "[   10.001234] EDAC MC0: 1 CE on DIMM_0_CH0 (mc:0 page:0x00012ab offset:0x0 grain:8 syndrome:0x0000000000000001)",
+            "[   10.001235] EDAC MC0: CE error on memory module DIMM_0_CH0 (csrow:0 channel:0)",
+            "[   47.234567] EDAC MC0: 1 UE on DIMM_0_CH0 (mc:0 page:0x00012ab offset:0x50 grain:8 syndrome:0x0000000000000000)",
+            "[   55.123456] mce: [Hardware Error]: Machine check events logged",
+            "[   88.000000] pcieport 0000:00:01.0: AER: Corrected error received: 0000:01:00.0",
+        ]
+    )
 
     @pytest.fixture(scope="class")
     def log_file(self, tmp_path_factory):
@@ -246,9 +261,18 @@ class TestSyntheticPipeline:
         d = tmp_path_factory.mktemp("pipeline_out")
         out = d / "events.json"
         result = subprocess.run(
-            [sys.executable, str(PARSER), "--input", str(log_file),
-             "--output", str(out), "--no-stats"],
-            capture_output=True, text=True, timeout=10,
+            [
+                sys.executable,
+                str(PARSER),
+                "--input",
+                str(log_file),
+                "--output",
+                str(out),
+                "--no-stats",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         assert result.returncode == 0
         return out
@@ -258,12 +282,14 @@ class TestSyntheticPipeline:
 
     def test_pipeline_json_has_4_events(self, events_json_path):
         data = json.loads(events_json_path.read_text())
-        assert len(data) == 4, f"Expected 4 events, got {len(data)}: {[e['event_type'] for e in data]}"
+        assert len(data) == 4, (
+            f"Expected 4 events, got {len(data)}: {[e['event_type'] for e in data]}"
+        )
 
     def test_pipeline_ce_event_has_page(self, events_json_path):
         data = json.loads(events_json_path.read_text())
         ce = next(e for e in data if e["event_type"] == "CE")
-        assert ce["page"] == 0x12ab
+        assert ce["page"] == 0x12AB
 
     def test_pipeline_ue_event_has_offset(self, events_json_path):
         data = json.loads(events_json_path.read_text())
@@ -297,20 +323,37 @@ class TestSyntheticPipeline:
         if not REPLAY_SH.exists():
             pytest.skip("replay_kernel_state.sh not found")
         result = subprocess.run(
-            ["bash", str(REPLAY_SH), "--events", str(events_json_path),
-             "--dry-run", "--speed", "100"],
-            capture_output=True, text=True, timeout=15,
+            [
+                "bash",
+                str(REPLAY_SH),
+                "--events",
+                str(events_json_path),
+                "--dry-run",
+                "--speed",
+                "100",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
-        assert result.returncode == 0, \
-            f"replay_kernel_state.sh failed:\n{result.stderr}"
+        assert result.returncode == 0, f"replay_kernel_state.sh failed:\n{result.stderr}"
 
     def test_replay_script_dry_run_mentions_events(self, events_json_path):
         if not REPLAY_SH.exists():
             pytest.skip("replay_kernel_state.sh not found")
         result = subprocess.run(
-            ["bash", str(REPLAY_SH), "--events", str(events_json_path),
-             "--dry-run", "--speed", "100"],
-            capture_output=True, text=True, timeout=15,
+            [
+                "bash",
+                str(REPLAY_SH),
+                "--events",
+                str(events_json_path),
+                "--dry-run",
+                "--speed",
+                "100",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
         combined = result.stdout + result.stderr
         assert "CE" in combined or "event" in combined.lower() or "replay" in combined.lower()
@@ -319,6 +362,7 @@ class TestSyntheticPipeline:
 # ---------------------------------------------------------------------------
 # Prometheus metric synthesis
 # ---------------------------------------------------------------------------
+
 
 class TestMetricSynthesis:
     """Verify Prometheus text format can be synthesized from parsed events."""
@@ -335,6 +379,7 @@ class TestMetricSynthesis:
     def events(self):
         tp = TraceParser()
         from io import StringIO
+
         return tp.parse_file(StringIO("\n".join(self.LOG_LINES)))
 
     def test_parses_5_events(self, events):
@@ -356,6 +401,7 @@ class TestMetricSynthesis:
     def test_prometheus_text_synthesis(self, events):
         """Synthesize valid Prometheus text format from parsed events."""
         from collections import Counter
+
         ce_by_ctrl = Counter()
         ue_by_ctrl = Counter()
         for e in events:
@@ -364,13 +410,17 @@ class TestMetricSynthesis:
             elif e.event_type == "UE":
                 ue_by_ctrl[e.controller] += e.count
 
-        lines = ["# HELP edac_ce_total Correctable errors by controller",
-                 "# TYPE edac_ce_total counter"]
+        lines = [
+            "# HELP edac_ce_total Correctable errors by controller",
+            "# TYPE edac_ce_total counter",
+        ]
         for ctrl, count in sorted(ce_by_ctrl.items()):
             lines.append(f'edac_ce_total{{controller="{ctrl}"}} {count}')
 
-        lines += ["# HELP edac_ue_total Uncorrectable errors by controller",
-                  "# TYPE edac_ue_total counter"]
+        lines += [
+            "# HELP edac_ue_total Uncorrectable errors by controller",
+            "# TYPE edac_ue_total counter",
+        ]
         for ctrl, count in sorted(ue_by_ctrl.items()):
             lines.append(f'edac_ue_total{{controller="{ctrl}"}} {count}')
 

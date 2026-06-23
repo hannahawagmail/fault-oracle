@@ -30,8 +30,14 @@ class TestEdacSysfsStructure:
             assert mc_name in dirs, f"Controller {mc_name} missing from mock sysfs"
 
     def test_controller_files_exist(self, edac_sysfs, mock_topology):
-        required_files = ["ce_count", "ue_count", "ce_noinfo_count",
-                          "ue_noinfo_count", "mc_name", "size_mb"]
+        required_files = [
+            "ce_count",
+            "ue_count",
+            "ce_noinfo_count",
+            "ue_noinfo_count",
+            "mc_name",
+            "size_mb",
+        ]
         for mc_name in mock_topology:
             mc_dir = edac_sysfs / mc_name
             for fname in required_files:
@@ -110,9 +116,7 @@ class TestEdacCounterValues:
         for mc_name, mc in mock_topology.items():
             ctrl_ce = int((edac_sysfs / mc_name / "ce_count").read_text().strip())
             expected_total = sum(
-                mc["ce_counts"][r][c]
-                for r in range(mc["csrows"])
-                for c in range(mc["channels"])
+                mc["ce_counts"][r][c] for r in range(mc["csrows"]) for c in range(mc["channels"])
             )
             assert ctrl_ce == expected_total, (
                 f"{mc_name} ce_count={ctrl_ce} != sum of all channels={expected_total}"
@@ -129,7 +133,9 @@ class TestEdacCounterValues:
     def test_csrow_ue_counts_match_topology(self, edac_sysfs, mock_topology):
         for mc_name, mc in mock_topology.items():
             for r in range(mc["csrows"]):
-                csrow_ue = int((edac_sysfs / mc_name / f"csrow{r}" / "ue_count").read_text().strip())
+                csrow_ue = int(
+                    (edac_sysfs / mc_name / f"csrow{r}" / "ue_count").read_text().strip()
+                )
                 expected = mc["ue_counts"][r]
                 assert csrow_ue == expected, (
                     f"{mc_name}/csrow{r}/ue_count={csrow_ue}, expected {expected}"
@@ -165,6 +171,7 @@ class TestEdacCollectorRobustness:
     def test_missing_sysfs_root_handled(self, tmp_path):
         """Collector should not crash when sysfs root does not exist."""
         from conftest import _MockEDACCollector
+
         collector = _MockEDACCollector(str(tmp_path / "nonexistent"))
         # Should return empty dict, not raise
         result = collector.collect_raw()
@@ -174,6 +181,7 @@ class TestEdacCollectorRobustness:
         """Collector should handle empty sysfs root gracefully."""
         (tmp_path / "devices" / "system" / "edac" / "mc").mkdir(parents=True)
         from conftest import _MockEDACCollector
+
         collector = _MockEDACCollector(str(tmp_path))
         result = collector.collect_raw()
         assert result == {}
@@ -191,6 +199,7 @@ class TestEdacCollectorRobustness:
     def test_collector_collect_raw_structure(self, mock_sysfs, mock_topology):
         """collect_raw() must return nested dict with expected keys."""
         from conftest import _MockEDACCollector
+
         collector = _MockEDACCollector(str(mock_sysfs))
         result = collector.collect_raw()
 
@@ -211,6 +220,7 @@ class TestEdacCollectorRobustness:
     def test_collector_ce_values_match_topology(self, mock_sysfs, mock_topology):
         """collect_raw() CE values must match the mock topology."""
         from conftest import _MockEDACCollector
+
         collector = _MockEDACCollector(str(mock_sysfs))
         result = collector.collect_raw()
 
@@ -231,7 +241,16 @@ class TestEdacWritableCounters:
 
     def test_increment_ce_counter(self, writable_sysfs):
         """Writing a new CE value should be reflected in subsequent reads."""
-        mc0_ce = writable_sysfs / "devices" / "system" / "edac" / "mc" / "mc0" / "csrow0" / "ch0_ce_count"
+        mc0_ce = (
+            writable_sysfs
+            / "devices"
+            / "system"
+            / "edac"
+            / "mc"
+            / "mc0"
+            / "csrow0"
+            / "ch0_ce_count"
+        )
         original = int(mc0_ce.read_text().strip())
 
         # Simulate counter increment (as would happen after fault injection)
@@ -253,6 +272,7 @@ class TestEdacWritableCounters:
 
         # Verify
         from conftest import _MockEDACCollector
+
         collector = _MockEDACCollector(str(writable_sysfs))
         result = collector.collect_raw()
         assert result["mc0"]["ce_count"] == 0

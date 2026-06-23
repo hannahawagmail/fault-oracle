@@ -24,11 +24,12 @@ import pytest
 REPO_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(REPO_ROOT / "replay"))
 
-from parse_edac_trace import TraceParser, HardwareEvent
+from parse_edac_trace import HardwareEvent, TraceParser
 
 try:
-    from hypothesis import given, settings, assume, HealthCheck
     import hypothesis.strategies as st
+    from hypothesis import HealthCheck, assume, given, settings
+
     HYPOTHESIS_AVAILABLE = True
 except ImportError:
     HYPOTHESIS_AVAILABLE = False
@@ -77,8 +78,9 @@ grain_size = st.sampled_from([1, 2, 4, 8, 16, 32, 64, 128])
 syndrome_hex = st.integers(min_value=0, max_value=2**64 - 1).map(lambda x: f"{x:016x}")
 
 
-def make_edac_ce_line(ts: float, ctrl: str, count: int, page: int, offset: int,
-                      grain: int, syndrome: str) -> str:
+def make_edac_ce_line(
+    ts: float, ctrl: str, count: int, page: int, offset: int, grain: int, syndrome: str
+) -> str:
     """Produce a syntactically valid EDAC CE log line."""
     ts_str = format_monotonic(ts)
     return (
@@ -91,6 +93,7 @@ def make_edac_ce_line(ts: float, ctrl: str, count: int, page: int, offset: int,
 # ---------------------------------------------------------------------------
 # Property: parser never raises on arbitrary input
 # ---------------------------------------------------------------------------
+
 
 @given(lines=st.lists(printable_text, min_size=0, max_size=50))
 @settings(max_examples=500, suppress_health_check=[HealthCheck.too_slow])
@@ -120,6 +123,7 @@ def test_parser_never_raises_on_arbitrary_blob(text):
 # ---------------------------------------------------------------------------
 # Property: valid CE lines produce non-negative page fields
 # ---------------------------------------------------------------------------
+
 
 @given(
     ts=monotonic_seconds,
@@ -177,6 +181,7 @@ def test_valid_ce_line_count_field_matches(ts, ctrl, count, page):
 # Property: output sequence numbers are contiguous starting at 0
 # ---------------------------------------------------------------------------
 
+
 @given(
     timestamps=st.lists(
         monotonic_seconds,
@@ -212,6 +217,7 @@ def test_sequence_numbers_contiguous_from_zero(timestamps, page):
 # ---------------------------------------------------------------------------
 # Property: whitespace/encoding edge cases never crash parser
 # ---------------------------------------------------------------------------
+
 
 @given(
     prefix=st.text(
@@ -262,6 +268,7 @@ def test_many_blank_lines_interspersed(n_blanks, ts, ctrl):
 # Property: non-EDAC lines produce no events
 # ---------------------------------------------------------------------------
 
+
 @given(
     lines=st.lists(
         st.text(
@@ -290,6 +297,7 @@ def test_non_hardware_lines_produce_no_events(lines):
 # ---------------------------------------------------------------------------
 # Property: monotonic timestamp extraction is consistent
 # ---------------------------------------------------------------------------
+
 
 @given(
     seconds=st.floats(min_value=0, max_value=9_999_999, allow_nan=False, allow_infinity=False),
@@ -338,14 +346,13 @@ def test_all_parsed_events_have_known_event_type(lines):
     events = parser.parse_file(fp)
 
     for ev in events:
-        assert ev.event_type in KNOWN_EVENT_TYPES, (
-            f"Unknown event_type: {ev.event_type!r}"
-        )
+        assert ev.event_type in KNOWN_EVENT_TYPES, f"Unknown event_type: {ev.event_type!r}"
 
 
 # ---------------------------------------------------------------------------
 # Property: subsystem field is always consistent with event_type
 # ---------------------------------------------------------------------------
+
 
 @given(
     ts=monotonic_seconds,
@@ -368,14 +375,13 @@ def test_edac_events_have_edac_subsystem(ts, ctrl, count, page):
 
     for ev in events:
         if ev.event_type in ("CE", "UE"):
-            assert ev.subsystem == "EDAC", (
-                f"EDAC event has subsystem {ev.subsystem!r}"
-            )
+            assert ev.subsystem == "EDAC", f"EDAC event has subsystem {ev.subsystem!r}"
 
 
 # ---------------------------------------------------------------------------
 # Property: parse result is a flat list (never nested or None)
 # ---------------------------------------------------------------------------
+
 
 @given(lines=st.lists(st.text(max_size=200), min_size=0, max_size=100))
 @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
@@ -391,14 +397,13 @@ def test_result_is_always_flat_list(lines):
     assert result is not None
     assert isinstance(result, list)
     for item in result:
-        assert isinstance(item, HardwareEvent), (
-            f"Expected HardwareEvent, got {type(item)}"
-        )
+        assert isinstance(item, HardwareEvent), f"Expected HardwareEvent, got {type(item)}"
 
 
 # ---------------------------------------------------------------------------
 # Property: multiple parse runs on the same input produce the same output
 # ---------------------------------------------------------------------------
+
 
 @given(
     lines=st.lists(printable_text, min_size=0, max_size=20),

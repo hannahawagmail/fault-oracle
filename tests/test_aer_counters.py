@@ -75,10 +75,10 @@ class TestAERSysfsStructure:
                         continue
                     parts = line.split()
                     assert len(parts) == 2, (
-                        f"{corr_path} line {i+1}: expected 2 fields, got {len(parts)}: '{line}'"
+                        f"{corr_path} line {i + 1}: expected 2 fields, got {len(parts)}: '{line}'"
                     )
                     assert parts[1].isdigit(), (
-                        f"{corr_path} line {i+1}: count '{parts[1]}' is not an integer"
+                        f"{corr_path} line {i + 1}: count '{parts[1]}' is not an integer"
                     )
 
 
@@ -149,8 +149,7 @@ class TestAERCollectorLogic:
 
     def test_device_count_correct(self, aer_sysfs, mock_aer_devices):
         count = sum(
-            1 for d in aer_sysfs.iterdir()
-            if d.is_dir() and (d / "aer_dev_correctable").exists()
+            1 for d in aer_sysfs.iterdir() if d.is_dir() and (d / "aer_dev_correctable").exists()
         )
         assert count == len(mock_aer_devices)
 
@@ -178,7 +177,8 @@ class TestAERCollectorLogic:
 
         # Enumerate: should find 0 AER devices
         count = sum(
-            1 for d in (tmp_path / "bus" / "pci" / "devices").iterdir()
+            1
+            for d in (tmp_path / "bus" / "pci" / "devices").iterdir()
             if d.is_dir() and (d / "aer_dev_correctable").exists()
         )
         assert count == 0
@@ -204,11 +204,14 @@ class TestAERCollectorLogic:
         parsed = parse_aer_file(aer_file)
         assert parsed["BadTLP"] == 7
 
-    @pytest.mark.parametrize("error_type,expected_count", [
-        ("BadTLP", 3),
-        ("RxErr", 0),
-        ("TOTAL_ERR_COR", 3),
-    ])
+    @pytest.mark.parametrize(
+        "error_type,expected_count",
+        [
+            ("BadTLP", 3),
+            ("RxErr", 0),
+            ("TOTAL_ERR_COR", 3),
+        ],
+    )
     def test_specific_error_types_device_0(self, aer_sysfs, error_type, expected_count):
         parsed = parse_aer_file(aer_sysfs / "0000:01:00.0" / "aer_dev_correctable")
         assert parsed.get(error_type) == expected_count, (

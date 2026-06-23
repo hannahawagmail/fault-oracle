@@ -13,12 +13,17 @@ ignore = [
     "E501",   # line too long — black handles this
     "B008",   # do not perform function calls in default arguments (common in argparse)
     "UP007",  # X | Y union syntax — keep Optional[X] for Python 3.9 compat
+    "UP015",  # unnecessary mode argument — keep explicit for clarity
+    "UP017",  # datetime.UTC alias — only available in Python 3.11+
+    "UP035",  # deprecated typing imports — needed for Python 3.9
+    "UP045",  # Optional[X] → X | None — keep for Python 3.9 compat
 ]
 
 # Per-file ignores
 [lint.per-file-ignores]
-# Test files: allow assert statements and unused imports (fixtures)
-"**/tests/test_*.py" = ["F401", "F811"]
+# Test files: allow assert statements, unused imports/vars, late imports, unused loop vars
+"**/tests/**/*.py" = ["F401", "F811", "F841", "E402", "B007", "B905"]
+"**/test_*.py" = ["F401", "F811", "F841", "E402", "B007", "B905"]
 # Shim files that exec() main scripts
 "**/ce_forecaster.py"         = ["F401", "E402"]
 "**/rasdaemon_exporter.py"    = ["F401", "E402"]
