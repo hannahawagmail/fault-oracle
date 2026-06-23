@@ -397,3 +397,44 @@ class _MockEDACCollector:
                 }
 
         return result
+
+
+# ---------------------------------------------------------------------------
+# Auto-skip for optional heavy dependencies
+# ---------------------------------------------------------------------------
+
+# Optional deps that should cause graceful skips when not installed.
+# Tests import these via pytest.importorskip() or the fixtures below.
+_OPTIONAL_DEPS = {
+    "prophet": "Facebook Prophet (pip install prophet)",
+    "cmdstanpy": "CmdStanPy (pip install cmdstanpy)",
+    "tensorflow": "TensorFlow (pip install tensorflow)",
+    "torch": "PyTorch (pip install torch)",
+}
+
+
+@pytest.fixture
+def require_prophet():
+    """Skip test if prophet is not installed."""
+    pytest.importorskip("prophet")
+
+
+@pytest.fixture
+def require_numpy():
+    """Skip test if numpy is not installed."""
+    pytest.importorskip("numpy")
+
+
+@pytest.fixture
+def require_pandas():
+    """Skip test if pandas is not installed."""
+    pytest.importorskip("pandas")
+
+
+def pytest_configure(config):
+    """Register custom markers for optional dependencies."""
+    for dep, desc in _OPTIONAL_DEPS.items():
+        config.addinivalue_line(
+            "markers",
+            f"requires_{dep}: test requires {desc}",
+        )
