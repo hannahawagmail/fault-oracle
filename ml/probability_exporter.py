@@ -57,19 +57,24 @@ def load_metadata(model_dir: Path) -> list:
 def forecast_next_24h(model_path: str, label_key: str) -> float:  # pragma: no cover
     """Load model and compute expected total CE count over next 24h."""
     try:
+        # SECURITY: SHA256 integrity check is MANDATORY before pickle.load().
+        # pickle.load() executes arbitrary code — a tampered .pkl file is RCE.
+        # Refusing to load without a verified .sha256 sidecar prevents this.
+        sha_path = model_path.replace('.pkl', '.sha256')
+        if not os.path.exists(sha_path):
+            log_error(f"REFUSING to load unsigned pickle {model_path} — no .sha256 sidecar found")
+            return 0.0
+
+        with open(sha_path) as sf:
+            expected = sf.read().strip()
+        with open(model_path, 'rb') as mf:
+            actual = hashlib.sha256(mf.read()).hexdigest()
+        if actual != expected:
+            log_error(f"Model integrity check FAILED for {model_path} — skipping")
+            return 0.0
+
         with open(model_path, "rb") as f:
             model = pickle.load(f)
-
-        # Integrity check: verify SHA256 sidecar if present (FIX 3 — pickle safety)
-        sha_path = model_path.replace('.pkl', '.sha256')
-        if os.path.exists(sha_path):
-            with open(sha_path) as sf:
-                expected = sf.read().strip()
-            with open(model_path, 'rb') as mf:
-                actual = hashlib.sha256(mf.read()).hexdigest()
-            if actual != expected:
-                log_error(f"Model integrity check FAILED for {model_path} — skipping")
-                return 0.0
 
         future = model.make_future_dataframe(periods=24, freq="h")
         fc = model.predict(future)
