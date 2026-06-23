@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""
-network/ib-collector.py — Entry point wrapper for ib_collector module.
-
-See ib_collector.py for full documentation.
-"""
+# CLI entry point — delegates to the importable module.
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent))
 from ib_collector import main
-
 if __name__ == "__main__":
     main()

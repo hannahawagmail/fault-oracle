@@ -41,7 +41,7 @@ _sel_mod = None
 def _bert_mod():
     global _bert
     if _bert is None:
-        _bert = _import("bert_reader_fuzz", REPO / "apei" / "bert-reader.py")
+        _bert = _import("bert_reader_fuzz", REPO / "apei" / "bert_reader.py")
     return _bert
 
 
@@ -55,14 +55,14 @@ def _ib_mod():
 def _pmem_mod():
     global _pmem
     if _pmem is None:
-        _pmem = _import("pmem_collector_fuzz", REPO / "power_cxl" / "pmem-collector.py")
+        _pmem = _import("pmem_collector_fuzz", REPO / "power_cxl" / "pmem_collector.py")
     return _pmem
 
 
 def _bmc_sel_mod():
     global _sel_mod
     if _sel_mod is None:
-        _sel_mod = _import("ipmi_sel_fuzz", REPO / "bmc" / "ipmi-sel-poller.py")
+        _sel_mod = _import("ipmi_sel_fuzz", REPO / "bmc" / "ipmi_sel_poller.py")
     return _sel_mod
 
 

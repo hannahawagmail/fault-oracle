@@ -242,7 +242,7 @@ class TestMockAnomalyPipeline:
 
     @pytest.fixture(scope="class")
     def zscore_mod(self):
-        return import_from_file("zscore_detector_int", REPO / "anomaly" / "zscore-detector.py")
+        return import_from_file("zscore_detector_int", REPO / "anomaly" / "zscore_detector.py")
 
     def test_30_normal_samples_no_anomaly(self, zscore_mod):
         """30 normal samples → |Z| < 3.0, anomaly_detected = 0."""

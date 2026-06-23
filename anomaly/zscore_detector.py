@@ -29,7 +29,7 @@ import urllib.request
 import urllib.parse
 from pathlib import Path
 
-DEFAULT_PROMETHEUS = "http://localhost:9090"
+DEFAULT_PROMETHEUS = os.environ.get("PROMETHEUS_URL", "http://localhost:9090")
 DEFAULT_OUTPUT     = Path("/var/lib/node_exporter/textfile_collector/anomaly.prom")
 DEFAULT_QUERY      = "rate(edac_correctable_errors_total[5m])"
 DEFAULT_WINDOW     = "7d"
