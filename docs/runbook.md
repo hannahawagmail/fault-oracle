@@ -239,3 +239,83 @@ make test-all
 # Check all collectors are up
 curl -s http://localhost:9101/metrics | grep collector_up
 ```
+
+---
+
+## Automated Remediation Failures
+
+**Severity:** high  
+**Trigger:** Remediation webhook returns error or node drain times out.
+
+**Investigation steps:**
+
+1. Check remediation controller logs:
+   ```bash
+   kubectl logs -l app=remediation-controller -n monitoring
+   ```
+2. Check if the target node is cordoned:
+   ```bash
+   kubectl get node <node> -o jsonpath='{.spec.unschedulable}'
+   ```
+3. Verify webhook endpoint is reachable:
+   ```bash
+   curl -s http://remediation-controller:8080/healthz
+   ```
+4. Check Kubernetes API permissions:
+   ```bash
+   kubectl auth can-i cordon nodes --as=system:serviceaccount:monitoring:remediation-controller
+   ```
+5. Review the cooldown state file:
+   ```bash
+   kubectl exec <pod> -- cat /tmp/remediation-state.json
+   ```
+
+**Resolution:**
+
+- If drain timeout: increase `--drain-timeout` or check for PDBs blocking eviction.
+- If API 403: update the ClusterRole with `nodes` patch permission.
+- If webhook unreachable: restart the remediation-controller deployment.
+
+---
+
+## CE → UE Progression Decision Framework
+
+**Severity:** critical (preemptive action required)  
+**Trigger:** `failure_probability_7d > 0.8` OR CE rate > 100/hour on a single DIMM.
+
+### Decision Matrix
+
+| CE Rate | Probability | Page-offlined | Action |
+|---------|------------|---------------|--------|
+| < 10/hr | < 0.5 | No | Monitor |
+| 10-100/hr | 0.5-0.8 | No | Schedule replacement in next maintenance window |
+| > 100/hr | > 0.8 | Yes | Immediate drain + replace |
+| Any | Any | UE occurred | Emergency: isolate node immediately |
+
+**Investigation steps:**
+
+1. Identify affected DIMM:
+   ```promql
+   edac_controller_ce_total{controller="mc0",csrow="X",channel="Y"}
+   ```
+2. Map to physical slot:
+   ```bash
+   ipmitool sdr | grep -i dimm
+   ```
+   Or check SMBIOS data.
+3. Check page-offline status:
+   ```bash
+   cat /proc/pagehardware
+   ```
+4. If replacement needed: cordon node → drain workloads → notify DC ops.
+
+---
+
+## Escalation Matrix
+
+| Severity | Response Time | Responder | Communication |
+|----------|--------------|-----------|---------------|
+| Critical (UE, node down) | 15 min | On-call SRE | PagerDuty + Slack #incidents |
+| High (CE storm, drain fail) | 1 hour | Platform team | Slack #hw-faults |
+| Medium (single CE, collector down) | 4 hours | Platform team | Jira ticket |
+| Low (threshold warning) | Next business day | HW ops | Email notification |
