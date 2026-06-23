@@ -11,45 +11,21 @@ required.
 from __future__ import annotations
 
 import subprocess
-import sys
+import time
 from pathlib import Path
-from typing import List, Optional
 
 import pytest
 
 SCRIPT = Path(__file__).parent.parent / "replay" / "replay_kernel_state.sh"
-SAMPLE_LOG = Path(__file__).parent.parent / "replay" / "example_traces" / "sample_ce_storm.log"
-PARSE_SCRIPT = Path(__file__).parent.parent / "replay" / "parse_edac_trace.py"
-
-# Pre-parse the sample log to JSON (created once, used by all tests)
-_EVENTS_JSON = Path("/tmp/test_replay_chaos_events.json")
-
-
-def _ensure_events_json():
-    """Parse sample log into JSON if not already done."""
-    if not _EVENTS_JSON.exists():
-        subprocess.run(
-            [
-                "python3",
-                str(PARSE_SCRIPT),
-                "--input",
-                str(SAMPLE_LOG),
-                "--output",
-                str(_EVENTS_JSON),
-                "--no-stats",
-            ],
-            check=True,
-            capture_output=True,
-        )
+FIXTURE_JSON = Path(__file__).parent / "fixtures" / "replay_3events.json"
 
 
 def _run_replay(speed: str, extra_args: list[str] | None = None) -> subprocess.CompletedProcess:
-    _ensure_events_json()
     cmd = [
         "bash",
         str(SCRIPT),
         "--events",
-        str(_EVENTS_JSON),
+        str(FIXTURE_JSON),
         "--speed",
         speed,
         "--dry-run",
@@ -164,8 +140,6 @@ class TestInputEdgeCases:
 
     def test_dry_run_flag_skips_actual_sleep(self):
         """--dry-run must complete quickly even with 0.001x speed."""
-        import time
-
         start = time.monotonic()
         result = _run_replay("0.001")
         elapsed = time.monotonic() - start

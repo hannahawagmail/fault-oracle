@@ -1,0 +1,5 @@
+[
+  {"seq": 0, "timestamp_str": "[1.000000]", "timestamp_ns": 1000000000, "monotonic_s": 1.0, "event_type": "CE", "subsystem": "EDAC", "controller": "MC0", "csrow": 0, "channel": 0, "count": 1, "page": 4779, "offset": 0, "grain": 8, "syndrome": "0000000000000001", "pci_device": null, "aer_error_type": null, "raw_message": "[    1.000000] EDAC MC0: 1 CE on csrow0 ch0"},
+  {"seq": 1, "timestamp_str": "[2.000000]", "timestamp_ns": 2000000000, "monotonic_s": 2.0, "event_type": "CE", "subsystem": "EDAC", "controller": "MC0", "csrow": 0, "channel": 1, "count": 2, "page": 4780, "offset": 8, "grain": 8, "syndrome": "0000000000000002", "pci_device": null, "aer_error_type": null, "raw_message": "[    2.000000] EDAC MC0: 2 CE on csrow0 ch1"},
+  {"seq": 2, "timestamp_str": "[3.000000]", "timestamp_ns": 3000000000, "monotonic_s": 3.0, "event_type": "UE", "subsystem": "EDAC", "controller": "MC0", "csrow": 1, "channel": 0, "count": 1, "page": 4781, "offset": 0, "grain": 8, "syndrome": null, "pci_device": null, "aer_error_type": null, "raw_message": "[    3.000000] EDAC MC0: 1 UE on csrow1 ch0"}
+]
