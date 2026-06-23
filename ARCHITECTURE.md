@@ -286,3 +286,52 @@ kernel subsystems depend on for liveness. The EDAC/AER/MCE pipeline this reposit
 restores the analogous guarantee for hardware fault handling: that faults are detected,
 counted, and recovered from in bounded time, and that the recovery path is verified before
 it is needed.
+
+---
+
+## 8. Extended Detection and Analytics (post-v1.0)
+
+The core EDAC/AER/MCE pipeline described above has been extended with additional
+subsystems that follow the same architectural pattern (sysfs source → collector →
+Prometheus metric → alert rule → runbook):
+
+### 8.1 Additional Collectors
+
+| Collector | Source | Metrics Prefix | Purpose |
+|-----------|--------|----------------|----------|
+| GPU (NVIDIA/AMD) | nvidia-smi, ROCm sysfs | `gpu_xid_`, `gpu_throttle_` | XID errors, thermal throttling |
+| BMC/IPMI | ipmitool SEL, Redfish | `ipmi_sel_`, `bmc_sensor_` | Out-of-band hardware events |
+| CXL Memory | /sys/bus/cxl/ | `cxl_correctable_`, `cxl_uncorrectable_` | CXL memory device errors |
+| Storage (NVMe/SATA) | nvme-cli, smartctl | `nvme_critical_warning_`, `sata_reallocated_` | Drive health and wear |
+| Network (IB/RoCE) | /sys/class/infiniband/ | `ib_port_rcv_errors_` | Fabric error counters |
+| Power/Thermal | RAPL sysfs, thermal zones | `rapl_energy_`, `thermal_zone_` | Power anomalies, thermal events |
+| SmartNIC/DPU | NIC sysfs stats | `smartnic_rx_errors_` | Data-path NIC counters |
+| eBPF Tracepoints | kernel tracepoints | `ebpf_edac_ce_`, `ebpf_edac_ue_` | Low-latency kernel-space collection |
+
+### 8.2 ML Prediction Pipeline
+
+A secondary analytics layer runs alongside the real-time collectors:
+
+1. **CE Forecaster** (`ml/ce-forecaster.py`) — Facebook Prophet time-series model
+   trained on hourly CE rates. Produces `failure_probability_7d` gauge.
+2. **Anomaly Detector** (`anomaly/zscore-detector.py`) — Statistical Z-score
+   detection for sudden CE rate changes.
+3. **DIMM Aging Report** (`aging/dimm-aging-report.py`) — Survival analysis
+   (Weibull/Kaplan-Meier) for fleet DIMM lifetime estimation.
+
+### 8.3 Automated Remediation
+
+The remediation controller (`remediation/remediation-controller.py`) watches
+`failure_probability_7d` and automatically cordons nodes exceeding the threshold.
+It implements:
+
+- Cooldown periods to prevent flapping
+- Dry-run mode for validation
+- State persistence for crash recovery
+- Webhook integration with Alertmanager
+
+### 8.4 Event Correlation
+
+The event correlator (`correlation/event-correlator.py`) links temporally adjacent
+events across subsystems (e.g., a CE storm followed by a PCIe AER event within
+500ms suggests a shared root cause in the memory fabric).
