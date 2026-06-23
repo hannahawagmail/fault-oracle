@@ -26,6 +26,8 @@ Metrics:
     rapl_collector_last_run_timestamp   — Unix timestamp of last run
 """
 
+from __future__ import annotations
+
 import argparse
 import sys
 import time

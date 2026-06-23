@@ -28,6 +28,8 @@ Metrics:
     misc_collector_last_run_timestamp    — Unix timestamp of last run
 """
 
+from __future__ import annotations
+
 import argparse
 import os
 import sys

@@ -29,6 +29,8 @@ Metrics:
     ipmi_sensor_collector_last_run_timestamp      gauge
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import os

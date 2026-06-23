@@ -25,6 +25,8 @@ GET /healthz
 Runs on port 8081 (metrics controller uses 8080).
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import os
