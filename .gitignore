@@ -28,6 +28,7 @@ exporter/*.test
 *.crt
 *.p12
 *.pfx
+security/certs/
 .env
 .env.*
 
