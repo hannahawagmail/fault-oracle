@@ -52,11 +52,11 @@ err()  { echo "[inject_aer] ERROR: $*" >&2; }
 
 # ----- Preflight checks ----------------------------------------------------
 
-# If backend is explicitly set to "none", skip everything (exit 2 = no backend available).
+# If backend is explicitly set to "none", skip everything (dry-run for CI).
 # This check must come BEFORE the root check so non-root CI can verify the exit code.
 if [[ "$BACKEND" == "none" ]]; then
-    log "Backend explicitly set to 'none' — no AER injection backend available (skip)."
-    exit 2
+    log "Backend explicitly set to 'none' — DRY-RUN: would inject AER error (type=$ERROR_TYPE)."
+    exit 0
 fi
 
 if [[ $EUID -ne 0 ]]; then

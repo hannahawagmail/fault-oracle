@@ -36,6 +36,7 @@ COUNT=1
 POLL_MSEC=""
 CHECK_MEMORY_FAILURE=false
 VERBOSE=false
+BACKEND="debugfs"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -46,9 +47,16 @@ while [[ $# -gt 0 ]]; do
         --poll-msec)          POLL_MSEC="$2"; shift 2 ;;
         --check-memory-failure) CHECK_MEMORY_FAILURE=true; shift ;;
         --verbose)            VERBOSE=true; shift ;;
+        --backend)            BACKEND="$2"; shift 2 ;;
         *) echo "Unknown option: $1" >&2; exit 1 ;;
     esac
 done
+
+# If backend=none, dry-run mode — no hardware needed
+if [[ "$BACKEND" == "none" ]]; then
+    echo "[inject_ue] DRY-RUN (backend=none): would inject $COUNT UE(s) on $CONTROLLER csrow=$CSROW ch=$CHANNEL"
+    exit 0
+fi
 
 EDAC_ROOT="/sys/devices/system/edac/mc/${CONTROLLER}"
 DEBUGFS_ROOT="/sys/kernel/debug/edac_cortex_ref"
