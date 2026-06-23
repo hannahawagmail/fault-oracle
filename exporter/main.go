@@ -156,6 +156,9 @@ func main() {
 
 	// ----- HTTP server -----------------------------------------------------
 
+	// Semaphore limits concurrent /metrics scrapes to prevent resource exhaustion.
+	scrapeSem := make(chan struct{}, 3)
+
 	mux := http.NewServeMux()
 
 	// Metrics endpoint — flips the readiness flag after first successful gather.
@@ -165,8 +168,15 @@ func main() {
 		Registry:      registry,
 	})
 	mux.HandleFunc(*metricsPath, func(w http.ResponseWriter, r *http.Request) {
-		baseHandler.ServeHTTP(w, r)
-		ready.Store(1)
+		select {
+		case scrapeSem <- struct{}{}:
+			defer func() { <-scrapeSem }()
+			baseHandler.ServeHTTP(w, r)
+			ready.Store(1)
+		default:
+			w.Header().Set("Retry-After", "5")
+			http.Error(w, "Too many concurrent scrapes", http.StatusServiceUnavailable)
+		}
 	})
 
 	// Liveness probe — always 200 while the process is running.
