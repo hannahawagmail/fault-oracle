@@ -10,10 +10,10 @@ version: "3.8"
 
 services:
   hw-fault-exporter:
+    # Builds for the host platform automatically; no platform lock needed.
     build:
       context: ../exporter
       dockerfile: Dockerfile
-    platform: linux/arm64
     ports:
       - "9100:9100"
     volumes:
