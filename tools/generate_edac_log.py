@@ -11,6 +11,8 @@ Usage:
     python3 tools/generate_edac_log.py --help
 """
 
+from __future__ import annotations
+
 import argparse
 import datetime
 import random
