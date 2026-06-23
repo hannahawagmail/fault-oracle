@@ -45,7 +45,7 @@ VERBOSE=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --events)           EVENTS_FILE="$2"; shift 2 ;;
+        --events|--input)   EVENTS_FILE="$2"; shift 2 ;;
         --dry-run)          DRY_RUN=true; shift ;;
         --speed)            SPEED="$2"; shift 2 ;;
         --no-timing)        NO_TIMING=true; shift ;;
@@ -95,13 +95,16 @@ fi
 EVENT_COUNT=$(jq 'length' "$EVENTS_FILE")
 log "Events file: $EVENTS_FILE ($EVENT_COUNT events)"
 
-# Build skip set
-declare -A SKIP_SET
+# Validate speed
+if [[ $(echo "$SPEED <= 0" | bc 2>/dev/null) -eq 1 ]]; then
+    err "Speed must be positive (got: $SPEED)"
+    exit 1
+fi
+
+# Build skip set (comma-delimited string for bash 3.2 compatibility)
+SKIP_SET_STR=""
 if [[ -n "$SKIP_TYPES" ]]; then
-    IFS=',' read -ra skip_arr <<< "$SKIP_TYPES"
-    for t in "${skip_arr[@]}"; do
-        SKIP_SET["$t"]=1
-    done
+    SKIP_SET_STR=",$SKIP_TYPES,"
     log "Skipping event types: ${SKIP_TYPES}"
 fi
 
@@ -115,13 +118,9 @@ INJECTED=0
 SKIPPED=0
 ERRORS=0
 
-# Parse the entire events file once into an array of compact JSON objects,
-# rather than re-reading and re-parsing the whole file for every event
-# (which is O(n^2) and slow on large CE-storm traces).
-mapfile -t EVENTS < <(jq -c '.[]' "$EVENTS_FILE")
-
-for i in "${!EVENTS[@]}"; do
-    EVENT="${EVENTS[$i]}"
+# Process events one at a time via jq (bash 3.2 compatible)
+i=0
+while IFS= read -r EVENT; do
 
     EVENT_TYPE=$(echo "$EVENT" | jq -r '.event_type')
     MONO_S=$(echo "$EVENT" | jq -r '.monotonic_s // 0')
@@ -136,9 +135,10 @@ for i in "${!EVENTS[@]}"; do
     vlog "  Raw: $RAW"
 
     # Check skip set
-    if [[ -n "${SKIP_SET[$EVENT_TYPE]:-}" ]]; then
+    if [[ -n "$SKIP_SET_STR" && "$SKIP_SET_STR" == *",$EVENT_TYPE,"* ]]; then
         log "SKIP [$i]: $EVENT_TYPE (in --skip-types)"
         SKIPPED=$((SKIPPED+1))
+        i=$((i+1))
         continue
     fi
 
@@ -157,14 +157,19 @@ for i in "${!EVENTS[@]}"; do
     fi
 
     # Determine effective controller
-    EFFECTIVE_CTRL="${CONTROLLER_OVERRIDE:-${CONTROLLER,,}}"
+    if [[ -n "$CONTROLLER_OVERRIDE" ]]; then
+        EFFECTIVE_CTRL="$CONTROLLER_OVERRIDE"
+    else
+        EFFECTIVE_CTRL=$(echo "$CONTROLLER" | tr '[:upper:]' '[:lower:]')
+    fi
     # Normalize: MC0 → mc0
-    EFFECTIVE_CTRL="${EFFECTIVE_CTRL/MC/mc}"
+    EFFECTIVE_CTRL=$(echo "$EFFECTIVE_CTRL" | sed 's/MC/mc/g')
 
     # Perform injection
     if $DRY_RUN; then
         log "DRY-RUN [$i]: would inject $EVENT_TYPE count=$COUNT ctrl=$EFFECTIVE_CTRL csrow=$CSROW ch=$CHANNEL"
         INJECTED=$((INJECTED+1))
+        i=$((i+1))
         continue
     fi
 
@@ -207,11 +212,13 @@ for i in "${!EVENTS[@]}"; do
         MCE)
             log "INFO [$i]: MCE events cannot be injected via debugfs — logging only"
             SKIPPED=$((SKIPPED+1))
+            i=$((i+1))
             continue
             ;;
         *)
             log "SKIP [$i]: unknown event type $EVENT_TYPE"
             SKIPPED=$((SKIPPED+1))
+            i=$((i+1))
             continue
             ;;
     esac
@@ -224,7 +231,8 @@ for i in "${!EVENTS[@]}"; do
         vlog "OK [$i]: $EVENT_TYPE injected"
         INJECTED=$((INJECTED+1))
     fi
-done
+    i=$((i+1))
+done < <(jq -c '.[]' "$EVENTS_FILE")
 
 # ----- Summary -------------------------------------------------------------
 
