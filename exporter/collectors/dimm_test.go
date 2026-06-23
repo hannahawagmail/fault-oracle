@@ -3,6 +3,8 @@ package collectors
 import (
 	"strings"
 	"testing"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 func TestParseDMIDecodeOutput(t *testing.T) {
@@ -120,5 +122,76 @@ func TestTrimmed(t *testing.T) {
 	}
 	if got := tbl.trimmed(99); got != "" {
 		t.Errorf("trimmed(99) = %q, want empty", got)
+	}
+}
+
+func TestNewDIMMCollector(t *testing.T) {
+	opts := Options{SysfsRoot: t.TempDir()}
+	c := NewDIMMCollector(opts)
+	if c == nil {
+		t.Fatal("NewDIMMCollector returned nil")
+	}
+}
+
+func TestDIMMCollector_Describe(t *testing.T) {
+	opts := Options{SysfsRoot: t.TempDir()}
+	c := NewDIMMCollector(opts)
+	ch := make(chan *prometheus.Desc, 10)
+	c.Describe(ch)
+	close(ch)
+	count := 0
+	for range ch {
+		count++
+	}
+	if count < 1 {
+		t.Errorf("Describe sent %d descriptors, want >= 1", count)
+	}
+}
+
+func TestDIMMCollector_Collect_EmptyDir(t *testing.T) {
+	opts := Options{SysfsRoot: t.TempDir()}
+	c := NewDIMMCollector(opts)
+	ch := make(chan prometheus.Metric, 10)
+	c.Collect(ch)
+	close(ch)
+	// With no sysfs data, should emit zero metrics and not panic.
+	count := 0
+	for range ch {
+		count++
+	}
+	if count != 0 {
+		t.Errorf("expected 0 metrics from empty sysfs, got %d", count)
+	}
+}
+
+func TestMapEDACLocation_KnownDIMM(t *testing.T) {
+	m := NewDIMMMapper("/sys", nil)
+	m.ParseDMIDecodeOutput(strings.NewReader(`Handle 0x0001, DMI type 17, 84 bytes
+Memory Device
+	Locator: DIMM_A1
+	Bank Locator: Node 0 Channel 1 Slot 2
+	Size: 16 GB
+	Type: DDR5
+`))
+	got := m.MapEDACLocation("mc0", 2, 1)
+	if got == nil {
+		t.Fatal("MapEDACLocation returned nil for known DIMM")
+	}
+	if got.Locator != "DIMM_A1" {
+		t.Errorf("Locator = %q, want DIMM_A1", got.Locator)
+	}
+	// Non-existent mapping returns nil.
+	if m.MapEDACLocation("mc9", 0, 0) != nil {
+		t.Error("expected nil for unknown EDAC location")
+	}
+}
+
+func TestLoad_MissingSysfs(t *testing.T) {
+	m := NewDIMMMapper("/nonexistent/path/xyz", nil)
+	if err := m.Load(); err != nil {
+		t.Fatalf("Load with missing sysfs should return nil, got: %v", err)
+	}
+	if len(m.All()) != 0 {
+		t.Errorf("expected 0 DIMMs, got %d", len(m.All()))
 	}
 }
