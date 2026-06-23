@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package collectors_test
+package collectors
 
 import (
 	"os"
@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/testutil"
 	"go.uber.org/zap"
 )
 
@@ -31,9 +30,9 @@ func buildMockCXLRoot(t *testing.T, devices map[string]map[string]string) string
 func TestCXLCollector_SingleDevice(t *testing.T) {
 	root := buildMockCXLRoot(t, map[string]map[string]string{
 		"mem0": {
-			"volatile_correctable_data_error":   "42",
-			"volatile_uncorrectable_data_error":  "0",
-			"persistent_correctable_data_error":  "3",
+			"volatile_correctable_data_error":     "42",
+			"volatile_uncorrectable_data_error":   "0",
+			"persistent_correctable_data_error":   "3",
 			"persistent_uncorrectable_data_error": "0",
 		},
 	})
@@ -111,7 +110,7 @@ func TestCXLCollector_MissingSysfs_CollectorDown(t *testing.T) {
 
 func TestCXLCollector_SkipsNonMemDevices(t *testing.T) {
 	root := buildMockCXLRoot(t, map[string]map[string]string{
-		"mem0":   {"volatile_correctable_data_error": "5"},
+		"mem0": {"volatile_correctable_data_error": "5"},
 	})
 	// Add a non-mem device directory
 	os.MkdirAll(filepath.Join(root, "bus", "cxl", "devices", "port0"), 0755)

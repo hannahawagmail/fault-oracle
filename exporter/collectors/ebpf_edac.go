@@ -43,16 +43,16 @@ const (
 
 // mcEvent mirrors struct mc_event_t from the BPF C code.
 type mcEvent struct {
-	Type       uint32
-	Severity   uint32
-	MC         uint32
-	TopLayer   uint32
-	MidLayer   uint32
-	LowerLayer uint32
-	_          [4]byte // padding
-	Address    uint64
+	Type        uint32
+	Severity    uint32
+	MC          uint32
+	TopLayer    uint32
+	MidLayer    uint32
+	LowerLayer  uint32
+	_           [4]byte // padding
+	Address     uint64
 	TimestampNS uint64
-	ErrorType  [16]byte
+	ErrorType   [16]byte
 }
 
 // eBPFEDACCollector collects EDAC/MCE/AER events from the BPF ring buffer.
@@ -60,10 +60,10 @@ type eBPFEDACCollector struct {
 	opts Options
 
 	// Prometheus descriptors
-	mcCEDesc   *prometheus.Desc
-	mcUEDesc   *prometheus.Desc
-	aerDesc    *prometheus.Desc
-	mceDesc    *prometheus.Desc
+	mcCEDesc *prometheus.Desc
+	mcUEDesc *prometheus.Desc
+	aerDesc  *prometheus.Desc
+	mceDesc  *prometheus.Desc
 
 	// Atomic counters drained from the ring buffer
 	mu       sync.Mutex
@@ -83,9 +83,9 @@ type mcKey struct{ mc, topLayer, midLayer uint32 }
 // If eBPF is unavailable it returns a collector that emits collector_up=0.
 func NewEBPFEDACCollector(opts Options) *eBPFEDACCollector {
 	c := &eBPFEDACCollector{
-		opts:  opts,
-		mcCE:  map[mcKey]uint64{},
-		mcUE:  map[mcKey]uint64{},
+		opts: opts,
+		mcCE: map[mcKey]uint64{},
+		mcUE: map[mcKey]uint64{},
 	}
 	c.mcCEDesc = prometheus.NewDesc(
 		"ebpf_edac_ce_total",
@@ -139,7 +139,7 @@ func (c *eBPFEDACCollector) start() error {
 	//   tp2, _ := link.Tracepoint("ras", "aer_event", objs.TraceAerEvent, nil)
 	//   tp3, _ := link.Tracepoint("ras", "mce_record", objs.TraceMceRecord, nil)
 	//   go c.drainRingBuffer(objs.Events)
-	return nil   // stub: real implementation loads BPF object
+	return nil // stub: real implementation loads BPF object
 }
 
 // drainRingBuffer is the background goroutine that reads events from the

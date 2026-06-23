@@ -152,10 +152,12 @@ func (c *MCECollector) Collect(ch chan<- prometheus.Metric) {
 // scrapeGHES reads ACPI APEI GHES error records from sysfs.
 //
 // On ARM64 servers, the GHES driver creates files under:
-//   /sys/firmware/acpi/errors/
+//
+//	/sys/firmware/acpi/errors/
 //
 // The rasdaemon project also exports a summary via:
-//   /sys/bus/platform/devices/GHES:0/*/error_count  (implementation-specific)
+//
+//	/sys/bus/platform/devices/GHES:0/*/error_count  (implementation-specific)
 //
 // For a more portable approach, we read the kernel's ras:mc_event tracepoint
 // counts from /sys/kernel/debug/tracing/events/ras/mc_event/enable — but this
@@ -259,9 +261,10 @@ func (c *MCECollector) scrapeMcelog() ([]mceEvent, error) {
 
 // decodeMCESeverity decodes MCE STATUS register severity.
 // STATUS bit layout (Intel/AMD MCE; approximated for ARM64 RAS error records):
-//   Bit 63: VAL — entry is valid
-//   Bit 61: UC  — uncorrected error
-//   Bit 57: PCC — processor context corrupt (panic-level)
+//
+//	Bit 63: VAL — entry is valid
+//	Bit 61: UC  — uncorrected error
+//	Bit 57: PCC — processor context corrupt (panic-level)
 func decodeMCESeverity(status uint64) string {
 	const (
 		bitUC  = 1 << 61
@@ -278,9 +281,12 @@ func decodeMCESeverity(status uint64) string {
 
 // scrapeRASCounters tries the rasdaemon sysfs counter path.
 // rasdaemon (when running) writes aggregate counts to:
-//   /sys/kernel/debug/rasdaemon/<severity>_count   (implementation-specific)
+//
+//	/sys/kernel/debug/rasdaemon/<severity>_count   (implementation-specific)
+//
 // Alternatively, some platforms expose:
-//   /sys/devices/system/edac/mc<N>/csrow<N>/ue_count  (already covered by EDAC collector)
+//
+//	/sys/devices/system/edac/mc<N>/csrow<N>/ue_count  (already covered by EDAC collector)
 //
 // This function looks for a standardized counter file written by rasdaemon.
 func (c *MCECollector) scrapeRASCounters() ([]mceEvent, error) {
@@ -335,5 +341,5 @@ type Options struct {
 // Ensure Options is defined once (declared here, used by edac.go and aer.go via same package).
 // Go does not allow duplicate type declarations in the same package — the Options struct is the
 // single canonical definition for all collectors in this package.
-var _ = fmt.Sprintf // keep fmt imported
+var _ = fmt.Sprintf       // keep fmt imported
 var _ = strings.TrimSpace // keep strings imported

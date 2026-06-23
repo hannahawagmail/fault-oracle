@@ -22,12 +22,22 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	dto "github.com/prometheus/client_model/go"
 	"go.uber.org/zap"
 )
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+// labelMap extracts label name→value pairs from a gathered metric.
+func labelMap(m *dto.Metric) map[string]string {
+	out := make(map[string]string)
+	for _, lp := range m.GetLabel() {
+		out[lp.GetName()] = lp.GetValue()
+	}
+	return out
+}
 
 // buildAERDevice creates a mock PCIe AER device under root/bus/pci/devices/<bdf>/.
 // correctable, nonfatal, and fatal map error_name → count.
@@ -531,4 +541,3 @@ func descFQName(d *prometheus.Desc) string {
 	}
 	return s[start+1 : start+1+end]
 }
-

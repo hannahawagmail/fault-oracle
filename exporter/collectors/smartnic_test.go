@@ -4,7 +4,7 @@
 //
 // Uses a mock sysfs tree under a tmpdir to avoid requiring real NIC hardware.
 
-package collectors_test
+package collectors
 
 import (
 	"os"
@@ -59,12 +59,12 @@ func newSmartNICCollector(sysfsRoot string) *SmartNICCollector {
 func TestSmartNICCollector_SingleInterface(t *testing.T) {
 	root := buildMockNetRoot(t, map[string]map[string]string{
 		"eth0": {
-			"operstate": "up",
-			"speed":     "1000",
-			"rx_bytes":  "100000",
-			"tx_bytes":  "200000",
-			"rx_errors": "0",
-			"tx_errors": "0",
+			"operstate":  "up",
+			"speed":      "1000",
+			"rx_bytes":   "100000",
+			"tx_bytes":   "200000",
+			"rx_errors":  "0",
+			"tx_errors":  "0",
 			"rx_dropped": "0",
 			"tx_dropped": "0",
 		},

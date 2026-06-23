@@ -25,13 +25,13 @@ const cpuRoot = "devices/system/cpu"
 
 // CpufreqCollector implements prometheus.Collector for CPU frequency scaling.
 type CpufreqCollector struct {
-	opts        Options
-	curFreq     *prometheus.Desc
-	minFreq     *prometheus.Desc
-	maxFreq     *prometheus.Desc
-	governor    *prometheus.Desc
-	scrapeTime  *prometheus.Desc
-	scrapeErrs  *prometheus.Desc
+	opts       Options
+	curFreq    *prometheus.Desc
+	minFreq    *prometheus.Desc
+	maxFreq    *prometheus.Desc
+	governor   *prometheus.Desc
+	scrapeTime *prometheus.Desc
+	scrapeErrs *prometheus.Desc
 	// collectorUp uses the shared collectorUpDesc (see shared.go).
 }
 

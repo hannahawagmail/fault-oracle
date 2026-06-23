@@ -33,19 +33,19 @@ const pmuEventSourceRoot = "bus/event_source/devices"
 
 // pmuBandwidthFile maps an event_source sysfs counter filename to a metric.
 type pmuBandwidthEntry struct {
-	dirGlob     string   // glob under event_source/devices/
-	counterFile string   // file under the matched directory
+	dirGlob     string // glob under event_source/devices/
+	counterFile string // file under the matched directory
 	metricDesc  **prometheus.Desc
-	direction   string   // "read" or "write" for log
+	direction   string // "read" or "write" for log
 }
 
 // PMUCollector reads ARM CMN/DSU PMU memory bandwidth counters.
 type PMUCollector struct {
-	opts        Options
-	readBytes   *prometheus.Desc
-	writeBytes  *prometheus.Desc
-	scrapeTime  *prometheus.Desc
-	scrapeErrs  *prometheus.Desc
+	opts       Options
+	readBytes  *prometheus.Desc
+	writeBytes *prometheus.Desc
+	scrapeTime *prometheus.Desc
+	scrapeErrs *prometheus.Desc
 	// collectorUp uses the shared collectorUpDesc (see shared.go).
 }
 
@@ -113,7 +113,7 @@ func (c *PMUCollector) Collect(ch chan<- prometheus.Metric) {
 		// We expose the PMU's existence and any sysfs-readable aggregate counters.
 		// If /events/amba_reads or /events/amba_writes exist, read them.
 
-		readPath  := filepath.Join(devDir, "events", "amba_reads")
+		readPath := filepath.Join(devDir, "events", "amba_reads")
 		writePath := filepath.Join(devDir, "events", "amba_writes")
 
 		if rVal, err := readUint64(readPath); err == nil {

@@ -47,9 +47,9 @@ const pciDevicesRoot = "bus/pci/devices"
 type AERCollector struct {
 	opts Options
 
-	corrTotal   *prometheus.Desc
-	uncorrTotal *prometheus.Desc
-	devicesTotal *prometheus.Desc
+	corrTotal      *prometheus.Desc
+	uncorrTotal    *prometheus.Desc
+	devicesTotal   *prometheus.Desc
 	scrapeDuration *prometheus.Desc
 	scrapeErrors   *prometheus.Desc
 	// collectorUp uses the shared collectorUpDesc (see shared.go) to avoid a

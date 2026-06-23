@@ -300,8 +300,8 @@ func TestDecodeMCESeverity_ZeroStatus(t *testing.T) {
 
 func TestDecodeMCESeverity_ParametrizedBitPatterns(t *testing.T) {
 	cases := []struct {
-		status   uint64
-		wantSev  string
+		status  uint64
+		wantSev string
 	}{
 		{0, "corrected"},
 		{1 << 63, "corrected"},

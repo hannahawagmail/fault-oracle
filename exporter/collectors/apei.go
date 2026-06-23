@@ -143,7 +143,7 @@ func parseBERTRecordCounts(data []byte) (map[string]int, error) {
 			break
 		}
 		recordLength := binary.LittleEndian.Uint32(region[offset+20:])
-		severityRaw  := binary.LittleEndian.Uint32(region[offset+24:])
+		severityRaw := binary.LittleEndian.Uint32(region[offset+24:])
 		counts[severityName(severityRaw)]++
 
 		if int(recordLength) < cperMinSize {

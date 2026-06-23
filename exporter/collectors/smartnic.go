@@ -56,11 +56,11 @@ var nicStatFiles = []statFile{
 type SmartNICCollector struct {
 	opts Options
 
-	descs       map[string]*prometheus.Desc
-	linkUp      *prometheus.Desc
-	linkSpeed   *prometheus.Desc
-	scrapeTime  *prometheus.Desc
-	scrapeErrs  *prometheus.Desc
+	descs      map[string]*prometheus.Desc
+	linkUp     *prometheus.Desc
+	linkSpeed  *prometheus.Desc
+	scrapeTime *prometheus.Desc
+	scrapeErrs *prometheus.Desc
 	// collectorUp uses the shared collectorUpDesc (see shared.go).
 }
 
@@ -137,7 +137,7 @@ func (c *SmartNICCollector) Collect(ch chan<- prometheus.Metric) {
 
 		statsDir := filepath.Join(netRoot, name, "statistics")
 		if _, err := os.Stat(statsDir); err != nil {
-			continue  // virtual or statistics-less interface
+			continue // virtual or statistics-less interface
 		}
 
 		// Per-stat counters
@@ -163,7 +163,7 @@ func (c *SmartNICCollector) Collect(ch chan<- prometheus.Metric) {
 		speedStr := readString(filepath.Join(netRoot, name, "speed"))
 		speed, _ := strconv.ParseFloat(strings.TrimSpace(speedStr), 64)
 		if speed < 0 {
-			speed = 0  // kernel returns -1 when link is down
+			speed = 0 // kernel returns -1 when link is down
 		}
 		ch <- prometheus.MustNewConstMetric(c.linkSpeed, prometheus.GaugeValue, speed, name)
 

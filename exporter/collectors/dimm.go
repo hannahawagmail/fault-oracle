@@ -319,12 +319,12 @@ func decodeSMBIOSMemType(b byte) string {
 // -----------------------------------------------------------------------------
 
 var (
-	reDMIHandle      = regexp.MustCompile(`^Handle\s+(0x[0-9A-Fa-f]+)`)
-	reDMIField       = regexp.MustCompile(`^\s+([^:]+):\s+(.*)$`)
-	reDMISizeGB      = regexp.MustCompile(`^(\d+)\s*GB$`)
-	reDMISizeMB      = regexp.MustCompile(`^(\d+)\s*MB$`)
-	reDMISpeedMT     = regexp.MustCompile(`^(\d+)\s*MT/s$`)
-	reDMISpeedMHz    = regexp.MustCompile(`^(\d+)\s*MHz$`)
+	reDMIHandle   = regexp.MustCompile(`^Handle\s+(0x[0-9A-Fa-f]+)`)
+	reDMIField    = regexp.MustCompile(`^\s+([^:]+):\s+(.*)$`)
+	reDMISizeGB   = regexp.MustCompile(`^(\d+)\s*GB$`)
+	reDMISizeMB   = regexp.MustCompile(`^(\d+)\s*MB$`)
+	reDMISpeedMT  = regexp.MustCompile(`^(\d+)\s*MT/s$`)
+	reDMISpeedMHz = regexp.MustCompile(`^(\d+)\s*MHz$`)
 )
 
 // ParseDMIDecodeOutput parses `dmidecode -t 17` text into m.dimms.
@@ -431,9 +431,9 @@ func (m *DIMMMapper) ParseDMIDecodeOutput(r io.Reader) error {
 // inferEDACLocation attempts to derive EDAC mc/csrow/channel indices from the
 // DIMM's BankLocator string.  Many BIOS implementations encode this as one of:
 //
-//   "Node 0 Channel 0 Slot 0"
-//   "BANK 0"
-//   "P0_Node0_Channel0_Dimm0"
+//	"Node 0 Channel 0 Slot 0"
+//	"BANK 0"
+//	"P0_Node0_Channel0_Dimm0"
 //
 // Heuristic regexps handle the common forms.  If parsing fails, the EDAC
 // fields are left at their zero/negative defaults.
@@ -519,8 +519,8 @@ func (m *DIMMMapper) All() []DIMMInfo {
 // data that doesn't change frequently but needs to be joinable with alert
 // queries in PromQL.
 type DIMMCollector struct {
-	opts    Options
-	mapper  *DIMMMapper
+	opts     Options
+	mapper   *DIMMMapper
 	dimmInfo *prometheus.Desc
 }
 

@@ -108,7 +108,7 @@ func (c *ThermalCollector) Collect(ch chan<- prometheus.Metric) {
 
 		} else if strings.HasPrefix(name, "cooling_device") {
 			curState := readString(filepath.Join(base, "cur_state"))
-			devType  := readString(filepath.Join(base, "type"))
+			devType := readString(filepath.Join(base, "type"))
 			if devType == "" {
 				devType = "unknown"
 			}

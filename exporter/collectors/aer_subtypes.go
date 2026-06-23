@@ -17,14 +17,14 @@ import (
 
 // aerSubtype maps a kernel AER error name to its canonical label.
 var aerCorrectableSubtypes = map[string]string{
-	"RxErr":        "receiver_error",
-	"BadTLP":       "bad_tlp",
-	"BadDLLP":      "bad_dllp",
-	"Rollover":     "replay_num_rollover",
-	"Timeout":      "replay_timer_timeout",
-	"NonFatalErr":  "advisory_non_fatal",
-	"CorrIntErr":   "corrected_internal_error",
-	"HeaderOF":     "header_log_overflow",
+	"RxErr":       "receiver_error",
+	"BadTLP":      "bad_tlp",
+	"BadDLLP":     "bad_dllp",
+	"Rollover":    "replay_num_rollover",
+	"Timeout":     "replay_timer_timeout",
+	"NonFatalErr": "advisory_non_fatal",
+	"CorrIntErr":  "corrected_internal_error",
+	"HeaderOF":    "header_log_overflow",
 }
 
 var aerNonfatalSubtypes = map[string]string{

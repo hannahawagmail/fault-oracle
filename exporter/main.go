@@ -41,11 +41,11 @@ import (
 )
 
 const (
-	defaultListenAddr  = ":9101"
-	defaultSysfsRoot   = "/sys"
-	defaultMetricsPath = "/metrics"
+	defaultListenAddr    = ":9101"
+	defaultSysfsRoot     = "/sys"
+	defaultMetricsPath   = "/metrics"
 	defaultScrapeTimeout = 10 * time.Second
-	exporterVersion    = "1.0.0"
+	exporterVersion      = "1.0.0"
 )
 
 func main() {
@@ -62,15 +62,15 @@ func main() {
 	scrapeTimeout := flag.Duration("scrape-timeout", defaultScrapeTimeout,
 		"Maximum time allowed for a single scrape cycle")
 	disableEDAC := flag.Bool("no-edac", false, "Disable the EDAC collector")
-	disableMCE  := flag.Bool("no-mce",  false, "Disable the MCE collector")
-	disableAER  := flag.Bool("no-aer",  false, "Disable the PCIe AER collector")
-	onceMode    := flag.Bool("once", false, "Single-shot: scrape once, print metrics to stdout, then exit")
+	disableMCE := flag.Bool("no-mce", false, "Disable the MCE collector")
+	disableAER := flag.Bool("no-aer", false, "Disable the PCIe AER collector")
+	onceMode := flag.Bool("once", false, "Single-shot: scrape once, print metrics to stdout, then exit")
 	showVersion := flag.Bool("version", false, "Print version and exit")
 
 	// mTLS flags — all three must be set together to enable mutual TLS.
 	tlsCert := flag.String("tls-cert", "", "Path to server TLS certificate (PEM)")
-	tlsKey  := flag.String("tls-key",  "", "Path to server TLS private key (PEM)")
-	tlsCA   := flag.String("tls-ca",   "", "Path to CA certificate for client verification (enables mTLS)")
+	tlsKey := flag.String("tls-key", "", "Path to server TLS private key (PEM)")
+	tlsCA := flag.String("tls-ca", "", "Path to CA certificate for client verification (enables mTLS)")
 
 	flag.Parse()
 

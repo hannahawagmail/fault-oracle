@@ -34,27 +34,27 @@ const cxlBusRoot = "bus/cxl/devices"
 
 // cxlStatFile maps a sysfs filename to its metric category (correctable/uncorrectable).
 type cxlStatFile struct {
-	name       string
-	errorType  string // "correctable" or "uncorrectable"
-	label      string // value of error_type label
+	name      string
+	errorType string // "correctable" or "uncorrectable"
+	label     string // value of error_type label
 }
 
 var cxlStatFiles = []cxlStatFile{
-	{"volatile_correctable_data_error",        "correctable", "volatile_data"},
-	{"volatile_uncorrectable_data_error",       "uncorrectable", "volatile_data"},
-	{"volatile_uncorrectable_no_addr_error",    "uncorrectable", "volatile_no_addr"},
-	{"persistent_correctable_data_error",       "correctable", "persistent_data"},
-	{"persistent_uncorrectable_data_error",     "uncorrectable", "persistent_data"},
-	{"persistent_uncorrectable_no_addr_error",  "uncorrectable", "persistent_no_addr"},
+	{"volatile_correctable_data_error", "correctable", "volatile_data"},
+	{"volatile_uncorrectable_data_error", "uncorrectable", "volatile_data"},
+	{"volatile_uncorrectable_no_addr_error", "uncorrectable", "volatile_no_addr"},
+	{"persistent_correctable_data_error", "correctable", "persistent_data"},
+	{"persistent_uncorrectable_data_error", "uncorrectable", "persistent_data"},
+	{"persistent_uncorrectable_no_addr_error", "uncorrectable", "persistent_no_addr"},
 }
 
 // CXLCollector implements prometheus.Collector for CXL memory devices.
 type CXLCollector struct {
-	opts        Options
-	correctable *prometheus.Desc
+	opts          Options
+	correctable   *prometheus.Desc
 	uncorrectable *prometheus.Desc
-	scrapeTime  *prometheus.Desc
-	scrapeErrs  *prometheus.Desc
+	scrapeTime    *prometheus.Desc
+	scrapeErrs    *prometheus.Desc
 	// collectorUp uses the shared collectorUpDesc (see shared.go).
 }
 
