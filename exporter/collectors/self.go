@@ -45,6 +45,10 @@ func NewSelfCollector(version string) *SelfCollector {
 func (s *SelfCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- s.buildInfo
 	ch <- s.uptime
+	// Shared descriptors — described only here to avoid duplicate-desc panic
+	ch <- collectorUpDesc
+	ch <- scrapeDurationDesc
+	ch <- scrapeErrorsDesc
 }
 
 // Collect implements prometheus.Collector.

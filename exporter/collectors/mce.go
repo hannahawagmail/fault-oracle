@@ -80,16 +80,8 @@ func NewMCECollector(opts Options) *MCECollector {
 			"1 if an MCE data source is available (GHES or mcelog), 0 otherwise.",
 			nil, nil,
 		),
-		scrapeDuration: prometheus.NewDesc(
-			"hw_fault_exporter_scrape_duration_seconds",
-			"Duration of the last scrape cycle for this collector.",
-			[]string{"collector"}, nil,
-		),
-		scrapeErrors: prometheus.NewDesc(
-			"hw_fault_exporter_scrape_errors_total",
-			"Total sysfs read errors encountered by this collector.",
-			[]string{"collector"}, nil,
-		),
+		scrapeDuration: scrapeDurationDesc,
+		scrapeErrors:   scrapeErrorsDesc,
 	}
 }
 
@@ -97,9 +89,6 @@ func NewMCECollector(opts Options) *MCECollector {
 func (c *MCECollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.mceTotal
 	ch <- c.mceAvailable
-	ch <- c.scrapeDuration
-	ch <- c.scrapeErrors
-	ch <- collectorUpDesc
 }
 
 // Collect implements prometheus.Collector.

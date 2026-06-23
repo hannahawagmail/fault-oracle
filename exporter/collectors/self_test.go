@@ -17,8 +17,8 @@ func TestSelfCollector_EmitsExpectedMetrics(t *testing.T) {
 	}
 
 	want := map[string]bool{
-		"hw_fault_exporter_build_info":      false,
-		"hw_fault_exporter_uptime_seconds":  false,
+		"hw_fault_exporter_build_info":     false,
+		"hw_fault_exporter_uptime_seconds": false,
 	}
 	for _, mf := range mfs {
 		if _, ok := want[mf.GetName()]; ok {
@@ -81,7 +81,8 @@ func TestSelfCollector_DescribeCount(t *testing.T) {
 	for range ch {
 		count++
 	}
-	if count != 2 {
-		t.Errorf("Describe: want 2 descriptors, got %d", count)
+	// Self collector describes its own metrics + shared descs (collectorUp, scrapeDuration, scrapeErrors)
+	if count != 5 {
+		t.Errorf("Describe: want 5 descriptors, got %d", count)
 	}
 }

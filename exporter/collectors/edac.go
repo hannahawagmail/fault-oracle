@@ -107,18 +107,8 @@ func NewEDACCollector(opts Options) *EDACCollector {
 			[]string{"controller"},
 			nil,
 		),
-		scrapeDuration: prometheus.NewDesc(
-			"hw_fault_exporter_scrape_duration_seconds",
-			"Duration of the last scrape cycle for this collector.",
-			[]string{"collector"},
-			nil,
-		),
-		scrapeErrors: prometheus.NewDesc(
-			"hw_fault_exporter_scrape_errors_total",
-			"Total sysfs read errors encountered by this collector.",
-			[]string{"collector"},
-			nil,
-		),
+		scrapeDuration: scrapeDurationDesc,
+		scrapeErrors:   scrapeErrorsDesc,
 	}
 }
 
@@ -128,9 +118,6 @@ func (c *EDACCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.ueTotal
 	ch <- c.ctrlCETotal
 	ch <- c.ctrlUETotal
-	ch <- c.scrapeDuration
-	ch <- c.scrapeErrors
-	ch <- collectorUpDesc
 }
 
 // Collect implements prometheus.Collector.

@@ -78,16 +78,8 @@ func NewAERCollector(opts Options) *AERCollector {
 			"Number of PCIe devices with AER capability visible in sysfs.",
 			nil, nil,
 		),
-		scrapeDuration: prometheus.NewDesc(
-			"hw_fault_exporter_scrape_duration_seconds",
-			"Duration of the last scrape cycle for this collector.",
-			[]string{"collector"}, nil,
-		),
-		scrapeErrors: prometheus.NewDesc(
-			"hw_fault_exporter_scrape_errors_total",
-			"Total sysfs read errors encountered by this collector.",
-			[]string{"collector"}, nil,
-		),
+		scrapeDuration: scrapeDurationDesc,
+		scrapeErrors:   scrapeErrorsDesc,
 	}
 }
 
@@ -96,9 +88,6 @@ func (c *AERCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.corrTotal
 	ch <- c.uncorrTotal
 	ch <- c.devicesTotal
-	ch <- c.scrapeDuration
-	ch <- c.scrapeErrors
-	ch <- collectorUpDesc
 }
 
 // Collect implements prometheus.Collector.

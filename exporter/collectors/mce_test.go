@@ -362,8 +362,6 @@ func TestMCECollector_DescribeEmitsAllDescriptors(t *testing.T) {
 	wantNames := []string{
 		"mce_events_total",
 		"mce_available",
-		"hw_fault_exporter_scrape_duration_seconds",
-		"hw_fault_exporter_scrape_errors_total",
 	}
 	var gotDescs []string
 	for d := range descCh {

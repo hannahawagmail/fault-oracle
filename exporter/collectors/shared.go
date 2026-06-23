@@ -20,3 +20,19 @@ var collectorUpDesc = prometheus.NewDesc(
 	[]string{"collector"},
 	nil,
 )
+
+// scrapeDurationDesc is the shared descriptor for scrape duration.
+var scrapeDurationDesc = prometheus.NewDesc(
+	"hw_fault_exporter_scrape_duration_seconds",
+	"Duration of the last scrape cycle for this collector.",
+	[]string{"collector"},
+	nil,
+)
+
+// scrapeErrorsDesc is the shared descriptor for scrape error counts.
+var scrapeErrorsDesc = prometheus.NewDesc(
+	"hw_fault_exporter_scrape_errors_total",
+	"Total sysfs read errors encountered by this collector.",
+	[]string{"collector"},
+	nil,
+)
