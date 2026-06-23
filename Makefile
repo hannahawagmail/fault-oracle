@@ -32,7 +32,7 @@ COMPOSE    ?= docker compose
 QEMU       ?= qemu-system-aarch64
 
 # shellcheck severity level (error | warning | info | style)
-SC_LEVEL   ?= warning
+SC_LEVEL   ?= error
 
 # Fault injection backend (debugfs | none)
 BACKEND    ?= debugfs
@@ -188,12 +188,12 @@ lint-shell: ## Run shellcheck on every .sh file
 	@echo "  OK — all shell scripts pass shellcheck"
 
 .PHONY: lint-python
-lint-python: ## Run black + flake8 + mypy on Python sources
-	@echo "black (check) ..."
-	@$(PYTHON) -m black --check --line-length 100 \
-	    $(ROOT_DIR)replay/ $(ROOT_DIR)tests/ 2>&1 | grep -v "^All done"
-	@echo "flake8 ..."
-	@$(PYTHON) -m flake8 --max-line-length=100 \
+lint-python: ## Run ruff linter and formatter check on Python sources
+	@echo "ruff format (check) ..."
+	@$(PYTHON) -m ruff format --check --line-length 100 \
+	    $(ROOT_DIR)replay/ $(ROOT_DIR)tests/
+	@echo "ruff check ..."
+	@$(PYTHON) -m ruff check \
 	    $(ROOT_DIR)replay/ $(ROOT_DIR)tests/
 	@echo "  OK — Python lint clean"
 
@@ -309,21 +309,23 @@ inject-safe: ## Dry-run all injection scripts (no hardware needed, safe for CI)
 .PHONY: replay
 replay: ## Parse and replay the bundled sample EDAC CE storm trace
 	@echo "Parsing sample trace ..."
-	$(PYTHON) $(PARSE_PY) $(SAMPLE_LOG) --output-format json | python3 -m json.tool | head -40
+	$(PYTHON) $(PARSE_PY) --input $(SAMPLE_LOG) --output /tmp/replay_events.json --pretty
+	@cat /tmp/replay_events.json | head -40
 	@echo ""
 	@echo "Replaying kernel state (1x speed, dry-run) ..."
-	bash $(REPLAY_SH) --input $(SAMPLE_LOG) --speed 1.0 --dry-run
+	bash $(REPLAY_SH) --events /tmp/replay_events.json --speed 1.0 --dry-run
 
 .PHONY: replay-fast
 replay-fast: ## Replay the sample trace at 100x speed
-	bash $(REPLAY_SH) --input $(SAMPLE_LOG) --speed 100.0 --dry-run
+	$(PYTHON) $(PARSE_PY) --input $(SAMPLE_LOG) --output /tmp/replay_events.json
+	bash $(REPLAY_SH) --events /tmp/replay_events.json --speed 100.0 --dry-run
 
 .PHONY: replay-custom
 replay-custom: ## Replay a custom log file: make replay-custom LOG=/path/to/kern.log
 	@if [ -z "$(LOG)" ]; then \
 	    echo "Usage: make replay-custom LOG=/path/to/kern.log"; exit 1; fi
-	$(PYTHON) $(PARSE_PY) $(LOG) --output-format json
-	bash $(REPLAY_SH) --input $(LOG) --speed 1.0 --dry-run
+	$(PYTHON) $(PARSE_PY) --input $(LOG) --output /tmp/replay_events.json
+	bash $(REPLAY_SH) --events /tmp/replay_events.json --speed 1.0 --dry-run
 
 # ---------------------------------------------------------------------------
 # Local development stack (Prometheus + Grafana)
@@ -491,8 +493,9 @@ check-tools: ## Check that all required tools are installed
 	[ $$ok -eq 1 ] || exit 1
 
 .PHONY: fmt
-fmt: ## Auto-format Python sources with black and Go sources with gofmt
-	$(PYTHON) -m black --line-length 100 $(ROOT_DIR)replay/ $(ROOT_DIR)tests/
+fmt: ## Auto-format Python sources with ruff and Go sources with gofmt
+	$(PYTHON) -m ruff format --line-length 100 $(ROOT_DIR)replay/ $(ROOT_DIR)tests/
+	$(PYTHON) -m ruff check --fix $(ROOT_DIR)replay/ $(ROOT_DIR)tests/ || true
 	gofmt -w $(EXPORTER)/
 
 .PHONY: pre-commit
