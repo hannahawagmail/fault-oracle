@@ -59,3 +59,22 @@ services:
     volumes:
       - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
     restart: unless-stopped
+
+  loki:
+    image: grafana/loki:2.9.4
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki/loki-config.yaml:/etc/loki/local-config.yaml:ro
+    command: -config.file=/etc/loki/local-config.yaml
+    restart: unless-stopped
+
+  fluent-bit:
+    image: fluent/fluent-bit:2.2
+    volumes:
+      - ./loki/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+      - ./loki/label.lua:/fluent-bit/scripts/label.lua:ro
+      - /var/log:/var/log:ro
+    depends_on:
+      - loki
+    restart: unless-stopped
