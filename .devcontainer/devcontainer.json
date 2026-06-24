@@ -1,0 +1,21 @@
+{
+  "name": "fault-oracle",
+  "image": "mcr.microsoft.com/devcontainers/go:1.21",
+  "workspaceFolder": "/workspaces/fault-oracle",
+  "features": {
+    "ghcr.io/devcontainers/features/python:1": { "version": "3.11" },
+    "ghcr.io/devcontainers-extra/features/shellcheck:0": {},
+    "ghcr.io/devcontainers-extra/features/jq:0": {},
+    "ghcr.io/devcontainers-extra/features/bats:1": {}
+  },
+  "postCreateCommand": "pip install -r tests/requirements.txt ruff pytest-cov hypothesis && cd exporter && go mod download",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go",
+        "ms-python.python",
+        "timonwong.shellcheck"
+      ]
+    }
+  }
+}
