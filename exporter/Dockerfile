@@ -16,7 +16,7 @@
 #   docker buildx build --platform linux/arm64 -t hw-fault-exporter:latest .
 
 # ── Stage 1: builder ──────────────────────────────────────────────────────
-FROM golang:1.21-alpine AS builder
+FROM golang:1.27-alpine AS builder
 
 # Install git so `go mod download` can fetch from VCS if needed.
 RUN apk add --no-cache git ca-certificates tzdata
